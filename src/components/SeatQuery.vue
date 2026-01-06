@@ -1,30 +1,44 @@
 <template>
   <div class="container">
-    <div class="graffiti-decoration circle-top"></div>
-    <div class="graffiti-decoration x-shape"></div>
+    <!-- 装饰：灯笼 -->
+    <div class="decoration lantern-left">
+      <div class="lantern-string"></div>
+      <div class="lantern-body">
+        <div class="lantern-text">春</div>
+      </div>
+      <div class="lantern-tassel"></div>
+    </div>
+    <div class="decoration lantern-right">
+      <div class="lantern-string"></div>
+      <div class="lantern-body">
+        <div class="lantern-text">福</div>
+      </div>
+      <div class="lantern-tassel"></div>
+    </div>
     
-    <div class="card neo-brutalism">
+    <!-- 主卡片：红包/卷轴风格 -->
+    <div class="card red-packet">
       <div class="card-header">
-        <div class="logo-tag">SEAT.SYS</div>
+        <div class="logo-seal">SEAT</div>
         <h1>座位查询</h1>
       </div>
       
-      <p class="subtitle">输入姓名或工号 /// 快速定位</p>
+      <p class="subtitle">新春大吉 · 恭喜发财 · 诸事顺遂</p>
       
       <div class="input-wrapper">
-        <input 
-          v-model="searchQuery" 
-          @keypress.enter="searchSeat"
-          type="text" 
-          placeholder="在此输入姓名或工号..." 
-          autocomplete="off"
-        >
-        <div class="input-shadow"></div>
+        <div class="input-inner">
+          <input 
+            v-model="searchQuery" 
+            @keypress.enter="searchSeat"
+            type="text" 
+            placeholder="在此输入姓名或工号..." 
+            autocomplete="off"
+          >
+        </div>
       </div>
       
       <button class="search-btn" @click="searchSeat">
-        <span>查询座位</span>
-        <div class="btn-shadow"></div>
+        <div class="btn-content">查询座位</div>
       </button>
       
       <div class="hint-tag">
@@ -34,21 +48,18 @@
 
     <!-- 结果弹窗 -->
     <div v-if="showModal" class="modal-overlay show" @click.self="closeModal">
-      <div class="modal neo-modal" :class="modalType">
-        <div class="modal-header-bar">
-          <span class="dot red"></span>
-          <span class="dot yellow"></span>
-          <span class="dot green"></span>
-        </div>
+      <div class="modal cny-modal" :class="modalType">
+        <div class="modal-border-decoration"></div>
+        <div class="modal-knot"></div>
         
         <h2 class="result-title">
           <span v-if="modalType === 'success'">查询成功</span>
-          <span v-else>查询失败</span>
+          <span v-else>查询提示</span>
         </h2>
         
         <div class="result-content" v-html="modalContent"></div>
         
-        <button class="modal-close" @click="closeModal">确认</button>
+        <button class="modal-close" @click="closeModal">我知道了</button>
       </div>
     </div>
   </div>
@@ -79,7 +90,7 @@ onMounted(async () => {
 const searchSeat = () => {
   const input = searchQuery.value.trim()
   if (!input) {
-    showResult(false, '请输入查询内容', '这里是空的！<br>请输入姓名或工号')
+    showResult(false, '请输入查询内容', '<div class="msg-text">这里是空的！<br>请输入姓名或工号</div>')
     return
   }
 
@@ -100,7 +111,10 @@ const searchSeat = () => {
         <div class="info-row"><label>工号</label><span>${emp.id}</span></div>
         <div class="info-row"><label>姓名</label><span>${emp.name}</span></div>
       </div>
-      <div class="seat-badge">${emp.seat}</div>
+      <div class="seat-badge-container">
+        <div class="seat-label">座位号</div>
+        <div class="seat-badge">${emp.seat}</div>
+      </div>
     `)
   } else if (results.length > 1) {
     let html = '<div class="multi-result-list">'
@@ -110,7 +124,7 @@ const searchSeat = () => {
     html += '</div>'
     showResult(true, '查询结果', html)
   } else {
-    showResult(false, '未找到', `没找到 "${input}" <br>是不是打错字了？`)
+    showResult(false, '未找到', `<div class="msg-text">没找到 "${input}" <br>是不是打错字了？</div>`)
   }
 }
 
@@ -134,178 +148,196 @@ const closeModal = () => {
   padding: 20px;
 }
 
-/* 涂鸦装饰 */
-.graffiti-decoration {
+/* 装饰：灯笼 */
+.decoration {
   position: absolute;
-  pointer-events: none;
-  z-index: 0;
+  top: -50px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: swing 3s ease-in-out infinite alternate;
 }
+.lantern-left { left: -10px; animation-delay: 0.5s; }
+.lantern-right { right: -10px; animation-delay: 0s; }
 
-.circle-top {
-  top: -40px;
-  right: -30px;
-  width: 80px;
-  height: 80px;
-  border: 4px solid var(--neon-pink);
-  border-radius: 50%;
-  transform: rotate(-15deg);
-  box-shadow: 0 0 15px var(--neon-pink);
-}
-
-.x-shape {
-  bottom: -20px;
-  left: -20px;
-  width: 40px;
+.lantern-string {
+  width: 2px;
   height: 40px;
+  background: var(--cny-gold);
 }
-.x-shape::before, .x-shape::after {
+
+.lantern-body {
+  width: 60px;
+  height: 50px;
+  background: #f00;
+  border-radius: 20px;
+  border: 2px solid var(--cny-gold);
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+.lantern-body::before, .lantern-body::after {
   content: '';
   position: absolute;
   width: 100%;
-  height: 5px;
-  background: var(--neon-cyan);
-  top: 50%;
-  left: 0;
-  box-shadow: 0 0 10px var(--neon-cyan);
+  height: 100%;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+} 
+.lantern-text {
+  color: var(--cny-gold);
+  font-family: var(--title-font);
+  font-size: 24px;
+  font-weight: bold;
 }
-.x-shape::before { transform: rotate(45deg); }
-.x-shape::after { transform: rotate(-45deg); }
-
-/*Neo-Brutalism 卡片 */
-.card {
+.lantern-tassel {
+  width: 4px;
+  height: 30px;
+  background: var(--cny-gold);
+  margin-top: -2px;
   position: relative;
-  background: var(--card-bg);
-  border: 2px solid var(--border-color);
-  padding: 40px 30px;
-  z-index: 10;
-  box-shadow: 10px 10px 0px var(--neon-purple); /* 硬阴影 */
-  transition: transform 0.2s;
+}
+.lantern-tassel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -5px;
+  width: 14px;
+  height: 20px;
+  background: radial-gradient(circle, var(--cny-red), transparent);
+  border-radius: 50%;
+  filter: blur(2px);
 }
 
-.logo-tag {
+/* 卡片风格 */
+.red-packet {
+  position: relative;
+  background: var(--cny-red);
+  border: 4px solid var(--cny-gold);
+  border-radius: 20px;
+  padding: 50px 30px 40px;
+  z-index: 10;
+  box-shadow: 
+    0 10px 25px rgba(0,0,0,0.5),
+    inset 0 0 30px rgba(0,0,0,0.2);
+  text-align: center;
+}
+
+/* 顶部封口样式 */
+.red-packet::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 40px;
+  background: var(--cny-red);
+  border: 4px solid var(--cny-gold);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  z-index: -1;
+}
+
+.logo-seal {
   display: inline-block;
-  background: var(--neon-green);
-  color: black;
-  font-weight: 800;
-  padding: 4px 8px;
-  font-size: 14px;
-  margin-bottom: 15px;
-  transform: rotate(-2deg);
+  width: 50px;
+  height: 50px;
+  line-height: 50px;
+  background: var(--cny-gold);
+  color: var(--cny-red);
+  font-weight: 900;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  border: 2px dashed var(--cny-red);
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
 }
 
 h1 {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 36px;
-  font-weight: 900;
-  text-transform: uppercase;
-  color: white;
-  text-shadow: 2px 2px 0 #000;
+  font-family: var(--title-font);
+  font-size: 48px;
+  color: var(--cny-gold);
+  text-shadow: 2px 2px 0 var(--cny-black);
   margin-bottom: 5px;
+  font-weight: normal;
 }
 
 .subtitle {
-  color: #aaa;
-  font-family: 'Noto Sans SC', sans-serif;
+  color: var(--cny-light-gold);
   font-size: 14px;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
   margin-bottom: 40px;
-  border-bottom: 1px dashed #444;
-  padding-bottom: 15px;
+  opacity: 0.9;
 }
 
 /* 输入框 */
 .input-wrapper {
-  position: relative;
   margin-bottom: 30px;
+  position: relative;
+  padding: 4px;
+  background: var(--cny-gold);
+  border-radius: 12px;
+}
+
+.input-inner {
+  background: var(--cny-cream);
+  border-radius: 8px;
+  padding: 2px;
 }
 
 input {
   width: 100%;
-  padding: 20px;
-  background: white;
-  border: 3px solid black;
+  padding: 15px;
+  background: transparent;
+  border: none;
   font-size: 18px;
-  font-family: 'Noto Sans SC', sans-serif;
+  font-family: var(--primary-font);
   font-weight: bold;
-  color: black;
+  color: var(--cny-black);
+  text-align: center;
   outline: none;
-  position: relative;
-  z-index: 2;
-  transition: transform 0.1s;
 }
-
-input:focus {
-  transform: translate(-2px, -2px);
-}
-
-.input-shadow {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 100%;
-  height: 100%;
-  background: var(--neon-green);
-  z-index: 1;
+input::placeholder {
+  color: #cbb;
+  font-weight: normal;
 }
 
 /* 按钮 */
 .search-btn {
-  position: relative;
   width: 100%;
-  height: 60px;
   background: transparent;
   border: none;
   cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s;
 }
 
-.search-btn span {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--neon-pink);
-  color: white;
-  font-family: 'Noto Sans SC', sans-serif;
-  font-weight: 900;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid white;
-  z-index: 2;
-  transition: transform 0.1s;
+.btn-content {
+  background: linear-gradient(to bottom, #ffeb3b, #fbc02d);
+  color: #d50000;
+  font-family: var(--title-font);
+  font-size: 24px;
+  padding: 15px;
+  border-radius: 50px;
+  box-shadow: 0 5px 0 #f57f17, 0 10px 10px rgba(0,0,0,0.3);
+  border: 2px solid #fff;
 }
 
-.btn-shadow {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 100%;
-  height: 100%;
-  border: 3px solid var(--neon-cyan);
-  background: transparent;
-  z-index: 1;
+.search-btn:active {
+  transform: translateY(4px);
 }
-
-.search-btn:active span {
-  transform: translate(6px, 6px);
-}
-
-.search-btn:hover span {
-  background: var(--neon-purple);
+.search-btn:active .btn-content {
+  box-shadow: 0 1px 0 #f57f17, 0 2px 5px rgba(0,0,0,0.3);
 }
 
 .hint-tag {
   margin-top: 30px;
-  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
-  color: #888;
-}
-.hint-tag span {
-  background: #222;
-  padding: 4px 10px;
-  border-radius: 4px;
 }
 
 /* 弹窗样式 */
@@ -313,7 +345,7 @@ input:focus {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  background: rgba(0,0,0,0.8);
+  background: rgba(44, 14, 14, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -321,225 +353,110 @@ input:focus {
   backdrop-filter: blur(5px);
 }
 
-.neo-modal {
-  background: white;
-  color: black;
-  padding: 0;
-  width: 90%;
+.cny-modal {
+  position: relative;
+  background: var(--cny-cream);
+  width: 85%;
   max-width: 400px;
-  border: 4px solid black;
-  box-shadow: 15px 15px 0 var(--neon-green);
+  padding: 30px;
+  border: 8px solid var(--cny-red);
+  border-radius: 12px;
   text-align: center;
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
 }
 
-.modal-header-bar {
-  display: flex;
-  gap: 8px;
-  padding: 10px 15px;
-  border-bottom: 4px solid black;
-  background: #eee;
-}
-
-.dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid black; }
-.red { background: #ff5f56; }
-.yellow { background: #ffbd2e; }
-.green { background: #27c93f; }
-
-.modal.error {
-  box-shadow: 15px 15px 0 var(--neon-pink);
+/* 弹窗边角花纹 */
+.modal-border-decoration {
+  position: absolute;
+  top: 5px; left: 5px; right: 5px; bottom: 5px;
+  border: 2px solid var(--cny-gold);
+  pointer-events: none;
 }
 
 .result-title {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-weight: 900;
+  font-family: var(--title-font);
   font-size: 32px;
-  margin: 30px 0 10px;
-  text-transform: uppercase;
+  color: var(--cny-red);
+  margin-bottom: 20px;
 }
-.modal.error .result-title { color: #ff0055; transform: rotate(-2deg); }
-.modal.success .result-title { color: #000; }
 
 :deep(.result-content) {
-  padding: 0 30px 30px;
+  padding: 10px 0 20px;
 }
 
 :deep(.ticket-info) {
-  text-align: left;
-  background: #f0f0f0;
+  background: #fff;
+  border: 1px solid #ddd;
   padding: 15px;
-  border: 2px solid black;
   margin-bottom: 20px;
-  font-family: 'JetBrains Mono', monospace;
+  text-align: left;
 }
 :deep(.info-row) {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
+  color: var(--cny-black);
 }
 :deep(.info-row label) { color: #888; }
-:deep(.info-row span) { font-weight: bold; }
 
+:deep(.seat-badge-container) {
+  background: var(--cny-red);
+  color: var(--cny-gold);
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+}
+:deep(.seat-label) {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 5px;
+}
 :deep(.seat-badge) {
-  font-size: 56px;
+  font-size: 42px;
   font-weight: 900;
-  color: black;
-  text-shadow: 2px 2px 0 var(--neon-green);
-  line-height: 1;
+  font-family: 'Arial Black', sans-serif;
+}
+
+:deep(.msg-text) {
+  color: var(--cny-black);
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 :deep(.multi-item) {
-  border-bottom: 1px dashed black;
   padding: 10px;
-  text-align: left;
-  font-family: 'JetBrains Mono', monospace;
+  border-bottom: 1px dashed #ccc;
+  color: var(--cny-black);
+  display: flex;
+  justify-content: space-between;
 }
-:deep(.multi-item .seat) {
-  float: right;
+:deep(.seat) {
+  color: var(--cny-red);
   font-weight: bold;
-  background: var(--neon-green);
-  padding: 0 5px;
 }
 
 .modal-close {
-  display: block;
-  width: 100%;
-  padding: 20px;
-  background: black;
-  color: white;
+  background: var(--cny-red);
+  color: var(--cny-gold);
   border: none;
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: bold;
-  font-size: 18px;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: 50px;
   cursor: pointer;
-  transition: background 0.2s;
-}
-.modal-close:hover {
-  background: #333;
-}
-
-
-
-/* Animations */
-@keyframes float {
-  0% { transform: translateY(0px) rotate(-15deg); }
-  50% { transform: translateY(-15px) rotate(-10deg); }
-  100% { transform: translateY(0px) rotate(-15deg); }
+  font-family: var(--primary-font);
+  font-weight: bold;
+  box-shadow: 0 4px 10px rgba(196, 30, 58, 0.4);
 }
 
-@keyframes float-reverse {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(10px); }
-  100% { transform: translateY(0px); }
+@keyframes swing {
+  0% { transform: rotate(5deg); }
+  100% { transform: rotate(-5deg); }
 }
 
-@keyframes glitch-anim {
-  0% { transform: translate(0); }
-  20% { transform: translate(-2px, 2px); }
-  40% { transform: translate(-2px, -2px); }
-  60% { transform: translate(2px, 2px); }
-  80% { transform: translate(2px, -2px); }
-  100% { transform: translate(0); }
-}
-
-@keyframes pop-in {
-  0% { opacity: 0; transform: scale(0.8) translateY(50px); }
-  60% { transform: scale(1.05) translateY(-10px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-@keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(204, 255, 0, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(204, 255, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(204, 255, 0, 0); }
-}
-
-.graffiti-decoration.circle-top {
-  animation: float 6s ease-in-out infinite;
-}
-
-.graffiti-decoration.x-shape {
-  animation: float-reverse 7s ease-in-out infinite;
-}
-
-.card {
-  animation: pop-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-h1:hover {
-  animation: glitch-anim 0.3s cubic-bezier(.25, .46, .45, .94) both infinite;
-  color: var(--neon-pink);
-}
-
-.input-wrapper:focus-within .input-shadow {
-  animation: pulse-border 2s infinite;
-}
-
-.neo-modal {
-  animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-/* Mobile Responsive */
 @media (max-width: 600px) {
-  .container {
-    padding: 10px;
-  }
-  
-  .card {
-    padding: 30px 20px;
-    box-shadow: 6px 6px 0px var(--neon-purple);
-  }
-  
-  h1 {
-    font-size: 26px;
-  }
-  
-  .seat-badge {
-    font-size: 42px;
-  }
-  
-  :deep(.seat-badge) {
-    font-size: 42px;
-  }
-  
-  .subtitle {
-    font-size: 12px;
-    margin-bottom: 30px;
-  }
-  
-  .circle-top {
-    width: 50px;
-    height: 50px;
-    top: -20px;
-    right: -10px;
-  }
-  
-  .x-shape {
-    width: 30px;
-    height: 30px;
-    bottom: -10px;
-    left: -10px;
-  }
-  
-  .search-btn {
-    height: 50px;
-  }
-  
-  .search-btn span {
-    font-size: 16px;
-  }
-  
-  input {
-    padding: 15px;
-    font-size: 16px;
-  }
-
-  .neo-modal {
-    width: 95%;
-    padding: 0;
-  }
-
-  .result-title {
-    font-size: 24px;
-  }
+  .lantern-body { width: 50px; height: 40px; }
+  .lantern-text { font-size: 20px; }
+  h1 { font-size: 36px; }
+  .red-packet { padding: 40px 20px 30px; }
 }
 </style>
