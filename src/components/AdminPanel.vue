@@ -7,7 +7,7 @@
     <!-- 登录界面 -->
     <div v-if="!isAuthenticated" class="card neo-brutalism login-card">
       <div class="card-header">
-        <div class="logo-tag">ADMIN_ACCESS</div>
+        <div class="logo-tag">管理员入口</div>
         <h1>后台管理</h1>
       </div>
       
@@ -16,35 +16,35 @@
           v-model="passwordInput" 
           @keypress.enter="handleLogin"
           type="password" 
-          placeholder="PASSWORD ///" 
+          placeholder="请输入口令 ///" 
           class="glitch-input"
         >
         <div class="input-shadow"></div>
       </div>
 
       <div v-if="loginError" class="error-msg">
-        > ACCESS_DENIED: WRONG_PASSWORD
+        > 访问拒绝：口令错误
       </div>
 
       <button class="action-btn" @click="handleLogin" :disabled="isChecking">
-        <span>{{ isChecking ? 'CHECKING...' : 'UNLOCK SYSTEM' }}</span>
+        <span>{{ isChecking ? '验证中...' : '解锁系统' }}</span>
         <div class="btn-shadow"></div>
       </button>
 
       <div class="back-link">
-        <router-link to="/">← BACK_TO_FRONTEND</router-link>
+        <router-link to="/">← 返回前台</router-link>
       </div>
     </div>
 
     <!-- 管理界面 (已解锁) -->
     <div v-else class="card neo-brutalism admin-card">
       <div class="top-bar">
-        <span class="status-badge">SYSTEM_UNLOCKED</span>
-        <button class="logout-btn" @click="logout">EXIT</button>
+        <span class="status-badge">系统已解锁</span>
+        <button class="logout-btn" @click="logout">退出</button>
       </div>
 
       <h1>数据上传</h1>
-      <p class="subtitle">UPLOAD_ZONE /// EXCEL_FILES_ONLY</p>
+      <p class="subtitle">上传区域 /// 仅限 EXCEL 文件</p>
 
       <div class="upload-zone" :class="{ 'has-file': selectedFile }" @click="triggerFileInput">
         <input 
@@ -58,13 +58,13 @@
         <div class="zone-content">
           <div v-if="!selectedFile">
             <div class="icon-box">+</div>
-            <p>CLICK_TO_UPLOAD</p>
+            <p>点击此处上传</p>
             <span class="file-type-tag">.XLSX / .XLS</span>
           </div>
           <div v-else>
             <div class="file-icon">📄</div>
             <p class="filename">{{ selectedFile.name }}</p>
-            <p class="warning">WARNING: WILL_OVERWRITE_DATA</p>
+            <p class="warning">警告：将覆盖现有数据</p>
           </div>
         </div>
       </div>
@@ -79,12 +79,12 @@
           :disabled="!selectedFile || isUploading"
           @click="uploadFile"
         >
-          <span>{{ isUploading ? 'UPLOADING...' : 'EXECUTE UPDATE' }}</span>
+          <span>{{ isUploading ? '正在上传...' : '执行更新' }}</span>
           <div class="btn-shadow"></div>
         </button>
         
         <button class="action-btn secondary" @click="generateQrCode">
-          <span>GET_APP_QR_CODE</span>
+          <span>获取 APP 二维码</span>
           <div class="btn-shadow"></div>
         </button>
       </div>
@@ -99,13 +99,13 @@
           <span class="dot green"></span>
         </div>
         
-        <h2>SCAN TO ACCESS</h2>
+        <h2>扫码访问 APP</h2>
         <div class="qr-container">
           <img :src="qrCodeUrl" alt="App QR Code" />
         </div>
-        <p class="qr-hint">Use your phone camera to scan</p>
+        <p class="qr-hint">请使用手机相机扫码预览</p>
         
-        <button class="modal-close" @click="closeQrModal">CLOSE</button>
+        <button class="modal-close" @click="closeQrModal">关闭</button>
       </div>
     </div>
   </div>
@@ -197,7 +197,7 @@ const uploadFile = async () => {
 
     if (result.success) {
       statusType.value = 'success'
-      statusMessage.value = '> SUCCESS: DATA_UPDATED'
+      statusMessage.value = '> 成功：数据已更新'
       setTimeout(() => {
         selectedFile.value = null
         if (fileInputRef.value) fileInputRef.value.value = ''
@@ -205,11 +205,11 @@ const uploadFile = async () => {
       }, 2000)
     } else {
       statusType.value = 'error'
-      statusMessage.value = '> ERROR: ' + result.message
+      statusMessage.value = '> 错误：' + result.message
     }
   } catch (error) {
     statusType.value = 'error'
-    statusMessage.value = '> SYSTEM_FAILURE: NETWORK_ERROR'
+    statusMessage.value = '> 系统故障：网络错误'
   } finally {
     isUploading.value = false
   }
@@ -234,7 +234,7 @@ const generateQrCode = async () => {
   } catch (err) {
     console.error(err)
     statusType.value = 'error'
-    statusMessage.value = '> ERROR: QR_GEN_FAILED'
+    statusMessage.value = '> 错误：二维码生成失败'
   }
 }
 
