@@ -7,7 +7,7 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = 'admin'; // 管理员口令，可在此修改
+const ADMIN_PASSWORD = 'MEILIN1!'; // 管理员口令，可在此修改
 
 // 全局内存缓存 (适配 Deno Deploy 等只读文件系统环境)
 let CACHE_DATA = [];
@@ -16,7 +16,7 @@ let CACHE_DATA = [];
 app.use(cors());
 app.use(express.json());
 // 生产环境托管 Vue 构建产物 (dist)
-app.use(express.static(path.join(__dirname, 'dist')));
+app.use(express.static(path.resolve(process.cwd(), 'dist')));
 
 // 配置 Multer：使用内存存储，不写入磁盘
 const upload = multer({ 
@@ -131,8 +131,13 @@ app.use((err, req, res, next) => {
 });
 
 // 处理 SPA 路由：所有非 API 请求返回 index.html
-app.get(/(.*)/, (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+app.get('*', (req, res) => {
+    res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'), (err) => {
+        if (err) {
+            console.error('Error serving index.html:', err);
+            res.status(500).send(err.message);
+        }
+    });
 });
 
 // 启动服务器
