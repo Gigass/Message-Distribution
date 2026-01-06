@@ -120,7 +120,17 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
     }
 });
 
-// 错误处理中间件 (Multer 错误等)
+// 处理 SPA 路由：所有非 API 请求返回 index.html
+app.use((req, res) => {
+    res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'), (err) => {
+        if (err) {
+            console.error('Error serving index.html:', err);
+            res.status(500).send(err.message);
+        }
+    });
+});
+
+// 错误处理中间件 (Multer 错误等) - 必须放在最后
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         return res.status(400).json({ success: false, message: '上传错误: ' + err.message });
@@ -128,16 +138,6 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ success: false, message: err.message });
     }
     next();
-});
-
-// 处理 SPA 路由：所有非 API 请求返回 index.html
-app.get('*', (req, res) => {
-    res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'), (err) => {
-        if (err) {
-            console.error('Error serving index.html:', err);
-            res.status(500).send(err.message);
-        }
-    });
 });
 
 // 启动服务器
