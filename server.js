@@ -6,8 +6,11 @@ const fs = require('fs');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3000;
-const ADMIN_PASSWORD = 'MEILIN1!'; // 管理员口令，可在此修改
+const PORT = process.env.PORT || 3000;
+const ADMIN_PASSWORD = 'admin'; // 管理员口令，可在此修改
+
+// 全局内存缓存 (适配 Deno Deploy 等只读文件系统环境)
+let CACHE_DATA = [];
 
 // 启用 CORS 和 JSON 解析
 app.use(cors());
@@ -15,9 +18,9 @@ app.use(express.json());
 // 生产环境托管 Vue 构建产物 (dist)
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// 配置 Multer：临时保存上传文件
+// 配置 Multer：使用内存存储，不写入磁盘
 const upload = multer({ 
-    dest: 'uploads_tmp/',
+    storage: multer.memoryStorage(),
     fileFilter: (req, file, cb) => {
         // 简单检查扩展名
         if (!file.originalname.match(/\.(xlsx|xls)$/)) {
@@ -26,6 +29,44 @@ const upload = multer({
         cb(null, true);
     }
 });
+
+// 工具函数：解析 Excel Buffer 并格式化数据
+const parseExcelBuffer = (buffer) => {
+    const workbook = xlsx.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawData = xlsx.utils.sheet_to_json(worksheet);
+    
+    return rawData.map(row => {
+        const idKey = Object.keys(row).find(k => k.includes('号') && (k.includes('工') || k.includes('编')));
+        const nameKey = Object.keys(row).find(k => k.includes('名'));
+        const seatKey = Object.keys(row).find(k => k.includes('座'));
+
+        return {
+            id: row[idKey || '员工编号'] || '',
+            name: row[nameKey || '姓名'] || '',
+            seat: row[seatKey || '座位号'] || ''
+        };
+    }).filter(item => item.id && item.name);
+};
+
+// 初始化：尝试从本地加载 info.xlsx 数据到内存
+const loadLocalData = () => {
+    try {
+        if (fs.existsSync('info.xlsx')) {
+            const fileBuffer = fs.readFileSync('info.xlsx');
+            CACHE_DATA = parseExcelBuffer(fileBuffer);
+            console.log(`[System] 已加载本地数据: ${CACHE_DATA.length} 条记录`);
+        } else {
+            console.log('[System] 本地 info.xlsx 不存在，初始数据为空');
+        }
+    } catch (error) {
+        console.error('[System] 加载本地数据失败:', error.message);
+    }
+};
+
+// 立即加载一次
+loadLocalData();
 
 // 中间件：口令验证
 const authMiddleware = (req, res, next) => {
@@ -41,66 +82,41 @@ app.post('/api/check-auth', authMiddleware, (req, res) => {
     res.json({ success: true, message: 'Verified' });
 });
 
-// API: 获取 Excel 数据
+// API: 获取 Excel 数据 (直接返回内存数据)
 app.get('/api/data', (req, res) => {
-    try {
-        if (!fs.existsSync('info.xlsx')) {
-            return res.json({ success: true, data: [] }); // 文件不存在时返回空数据
-        }
-        
-        const workbook = xlsx.readFile('info.xlsx');
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rawData = xlsx.utils.sheet_to_json(worksheet);
-        
-        const formattedData = rawData.map(row => {
-            const idKey = Object.keys(row).find(k => k.includes('号') && (k.includes('工') || k.includes('编')));
-            const nameKey = Object.keys(row).find(k => k.includes('名'));
-            const seatKey = Object.keys(row).find(k => k.includes('座'));
-
-            return {
-                id: row[idKey || '员工编号'] || '',
-                name: row[nameKey || '姓名'] || '',
-                seat: row[seatKey || '座位号'] || ''
-            };
-        }).filter(item => item.id && item.name);
-
-        res.json({ success: true, data: formattedData });
-    } catch (error) {
-        console.error('读取 Excel 失败:', error);
-        res.status(500).json({ success: false, message: '数据读取错误' });
-    }
+    res.json({ success: true, data: CACHE_DATA });
 });
 
-// API: 上传文件 (增加 authMiddleware)
+// API: 上传文件 (内存处理 + 尝试持久化)
 app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: '请选择文件' });
     }
 
-    const tempPath = req.file.path;
-    const targetPath = 'info.xlsx';
-
     try {
-        // 验证文件是否确实是 Excel (尝试读取一下)
+        // 1. 解析上传的文件 (Buffer) -> 更新内存缓存
+        const newData = parseExcelBuffer(req.file.buffer);
+        if (newData.length === 0) {
+            return res.status(400).json({ success: false, message: '文件为空或格式不正确' });
+        }
+        
+        // 更新内存
+        CACHE_DATA = newData;
+        console.log(`[Upload] 内存数据已更新: ${newData.length} 条记录`);
+
+        // 2. 尝试写入磁盘 (兼容本地开发环境)
+        // Deno Deploy 等只读环境会报错，捕获忽略即可
         try {
-            const workbook = xlsx.readFile(tempPath);
-            if (workbook.SheetNames.length === 0) throw new Error('空文件');
-        } catch (e) {
-            fs.unlinkSync(tempPath); // 删除无效文件
-            return res.status(400).json({ success: false, message: '无效的 Excel 文件' });
+            fs.writeFileSync('info.xlsx', req.file.buffer);
+            console.log('[Upload] 文件已持久化到 info.xlsx');
+        } catch (writeErr) {
+            console.warn('[Upload Warning] 无法写入磁盘 (可能是只读文件系统)，仅更新了内存数据:', writeErr.message);
         }
 
-        // 移动并重命名文件（覆盖旧的 info.xlsx）
-        fs.copyFileSync(tempPath, targetPath);
-        fs.unlinkSync(tempPath); // 删除临时文件
-
-        res.json({ success: true, message: '更新成功！文件已自动重命名为 info.xlsx' });
+        res.json({ success: true, message: '更新成功！(实时生效)' });
     } catch (error) {
         console.error('文件处理失败:', error);
-        // 清理临时文件
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        res.status(500).json({ success: false, message: '服务器内部错误: ' + error.message });
+        res.status(500).json({ success: false, message: '解析错误: ' + error.message });
     }
 });
 
@@ -124,9 +140,4 @@ app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
     console.log(`Front-end: http://localhost:${PORT}/`);
     console.log(`Back-end:  http://localhost:${PORT}/admin`);
-    
-    // 确保临时目录存在
-    if (!fs.existsSync('uploads_tmp')) {
-        fs.mkdirSync('uploads_tmp');
-    }
 });
