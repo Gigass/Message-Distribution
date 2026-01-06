@@ -69,6 +69,10 @@
         </div>
       </div>
 
+      <div v-if="parseProgress" class="progress-box">
+        {{ parseProgress }}
+      </div>
+
       <div v-if="statusMessage" class="status-box" :class="statusType">
         {{ statusMessage }}
       </div>
@@ -114,6 +118,7 @@
 <script setup>
 import { ref } from 'vue'
 import QRCode from 'qrcode'
+import * as XLSX from 'xlsx'
 
 // 状态管理
 const isAuthenticated = ref(false)
@@ -128,6 +133,7 @@ const statusMessage = ref('')
 const statusType = ref('')
 const isUploading = ref(false)
 const fileInputRef = ref(null)
+const parseProgress = ref('') // 解析进度提示
 
 // 登录逻辑
 const handleLogin = async () => {
@@ -174,42 +180,98 @@ const handleFileSelect = (event) => {
   if (!file) return
   selectedFile.value = file
   statusMessage.value = ''
+  parseProgress.value = ''
 }
 
-// 上传逻辑
+/**
+ * 在前端解析 Excel 文件 (适配 Cloudflare Pages)
+ * @param {File} file - Excel 文件
+ * @returns {Promise<Array>} 解析后的数据数组
+ */
+const parseExcelInBrowser = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const rawData = XLSX.utils.sheet_to_json(worksheet)
+        
+        // 格式化数据：自动识别列名
+        const formattedData = rawData.map(row => {
+          const idKey = Object.keys(row).find(k => k.includes('号') && (k.includes('工') || k.includes('编')))
+          const nameKey = Object.keys(row).find(k => k.includes('名'))
+          const seatKey = Object.keys(row).find(k => k.includes('座'))
+          
+          return {
+            id: String(row[idKey || '员工编号'] || ''),
+            name: String(row[nameKey || '姓名'] || ''),
+            seat: String(row[seatKey || '座位号'] || '')
+          }
+        }).filter(item => item.id && item.name)
+        
+        resolve(formattedData)
+      } catch (error) {
+        reject(error)
+      }
+    }
+    
+    reader.onerror = () => reject(new Error('文件读取失败'))
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+// 上传逻辑 (前端解析 Excel，发送 JSON)
 const uploadFile = async () => {
   if (!selectedFile.value) return
 
   isUploading.value = true
-  const formData = new FormData()
-  formData.append('file', selectedFile.value)
+  statusMessage.value = ''
+  parseProgress.value = '正在解析 Excel 文件...'
 
   try {
+    // 1. 在前端解析 Excel
+    const parsedData = await parseExcelInBrowser(selectedFile.value)
+    
+    if (parsedData.length === 0) {
+      throw new Error('文件为空或格式不正确，请检查是否包含员工编号、姓名、座位号列')
+    }
+    
+    parseProgress.value = `已解析 ${parsedData.length} 条记录，正在上传...`
+
+    // 2. 发送 JSON 数据到后端
     const response = await fetch('/api/upload', {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'x-auth-token': verifiedToken.value 
       },
-      body: formData
+      body: JSON.stringify({ data: parsedData })
     })
 
     const result = await response.json()
 
     if (result.success) {
       statusType.value = 'success'
-      statusMessage.value = '> 成功：数据已更新'
+      statusMessage.value = `> 成功：已更新 ${parsedData.length} 条记录`
+      parseProgress.value = ''
       setTimeout(() => {
         selectedFile.value = null
         if (fileInputRef.value) fileInputRef.value.value = ''
         statusMessage.value = ''
-      }, 2000)
+      }, 3000)
     } else {
       statusType.value = 'error'
       statusMessage.value = '> 错误：' + result.message
+      parseProgress.value = ''
     }
   } catch (error) {
     statusType.value = 'error'
-    statusMessage.value = '> 系统故障：网络错误'
+    statusMessage.value = '> 错误：' + error.message
+    parseProgress.value = ''
   } finally {
     isUploading.value = false
   }
@@ -515,6 +577,23 @@ input:focus { border-color: var(--neon-green); }
   background: rgba(255, 0, 85, 0.1);
   border-color: #ff0055;
   color: #ff0055;
+}
+
+.progress-box {
+  padding: 15px;
+  margin-bottom: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+  border: 2px dashed var(--neon-cyan);
+  background: rgba(0, 255, 255, 0.05);
+  color: var(--neon-cyan);
+  text-align: center;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 /* Modal Overlay & QR Styles */
