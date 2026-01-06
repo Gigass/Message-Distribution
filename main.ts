@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { serveDir } from "https://deno.land/std@0.208.0/http/file_server.ts";
 import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs";
 
@@ -35,7 +34,7 @@ async function loadLocalData() {
     const fileBuffer = await Deno.readFile("info.xlsx");
     CACHE_DATA = parseExcelBuffer(fileBuffer);
     console.log(`[System] 已加载本地数据: ${CACHE_DATA.length} 条记录`);
-  } catch (error) {
+  } catch (_error) {
     console.log("[System] 本地 info.xlsx 不存在，初始数据为空");
   }
 }
@@ -44,7 +43,7 @@ async function loadLocalData() {
 await loadLocalData();
 
 // 处理 CORS
-function corsHeaders() {
+function corsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -154,7 +153,7 @@ async function handler(req: Request): Promise<Response> {
       try {
         await Deno.writeFile("info.xlsx", buffer);
         console.log("[Upload] 文件已持久化到 info.xlsx");
-      } catch (writeErr) {
+      } catch (_writeErr) {
         console.warn(
           "[Upload Warning] 无法写入磁盘 (只读文件系统)，仅更新了内存数据"
         );
@@ -204,16 +203,14 @@ async function handler(req: Request): Promise<Response> {
     }
 
     return response;
-  } catch (error) {
-    console.error("Static file error:", error);
-    return new Response("Internal Server Error", { status: 500 });
+  } catch (_error) {
+    // 如果 dist 目录不存在，也返回错误信息
+    return new Response("Static files not found. Please run 'npm run build' first.", { 
+      status: 500,
+      headers: { "Content-Type": "text/plain" }
+    });
   }
 }
 
-// 启动服务器
-const port = parseInt(Deno.env.get("PORT") || "8000");
-console.log(`Server is running at http://localhost:${port}`);
-console.log(`Front-end: http://localhost:${port}/`);
-console.log(`Back-end:  http://localhost:${port}/#/admin`);
-
-serve(handler, { port });
+// 使用 Deno.serve（Deno Deploy 推荐的方式）
+Deno.serve(handler);
