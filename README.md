@@ -1,10 +1,10 @@
-# 座位查询系统 (Seat Inquiry System)
+# 桌号查询系统 (Table Inquiry System)
 
-这是一个基于 **Vue 3** (前端) 和 **Node.js/Express** (后端) 的企业座位查询系统。
+这是一个基于 **Vue 3** (前端) 和 **Node.js/Express** (后端) 的企业桌号查询系统。
 
 ## ✨ 功能特性
 
-- 🔍 **快速查询**：支持通过姓名或工号模糊/精确查询座位。
+- 🔍 **快速查询**：支持通过姓名或工号模糊/精确查询桌号。
 - 📱 **现代界面**：响应式设计，适配移动端和桌面端，拥有精美的动态粒子背景。
 - ⚙️ **后台管理**：提供独立的安全后台，可直接上传 Excel 文件更新数据。
 - 🛡️ **安全验证**：后台上传需校验口令。
@@ -131,7 +131,7 @@ const ADMIN_PASSWORD = "admin"; // 修改为你想要的口令
 
 - **工号** / 员工编号
 - **姓名**
-- **座位号**
+- **桌号**
 
 ---
 
@@ -146,6 +146,6 @@ const ADMIN_PASSWORD = "admin"; // 修改为你想要的口令
 │   └── router.js       # 路由配置
 ├── server.js           # Node.js 后端服务器
 ├── vite.config.js      # Vite 配置文件
-├── info.xlsx           # 存放座位数据的 Excel 文件
+├── info.xlsx           # 存放桌号数据的 Excel 文件
 └── package.json        # 项目配置
 ```

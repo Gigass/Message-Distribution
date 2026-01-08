@@ -204,12 +204,13 @@ const parseExcelInBrowser = (file) => {
         const formattedData = rawData.map(row => {
           const idKey = Object.keys(row).find(k => k.includes('号') && (k.includes('工') || k.includes('编')))
           const nameKey = Object.keys(row).find(k => k.includes('名'))
-          const seatKey = Object.keys(row).find(k => k.includes('座'))
+          // 优先识别"桌号"或"桌",其次识别"座位"或"座"
+          const seatKey = Object.keys(row).find(k => k.includes('桌')) || Object.keys(row).find(k => k.includes('座'))
           
           return {
             id: String(row[idKey || '员工编号'] || ''),
             name: String(row[nameKey || '姓名'] || ''),
-            seat: String(row[seatKey || '座位号'] || '')
+            seat: String(row[seatKey || '桌号'] || '')
           }
         }).filter(item => item.id && item.name)
         
@@ -237,7 +238,7 @@ const uploadFile = async () => {
     const parsedData = await parseExcelInBrowser(selectedFile.value)
     
     if (parsedData.length === 0) {
-      throw new Error('文件为空或格式不正确，请检查是否包含员工编号、姓名、座位号列')
+      throw new Error('文件为空或格式不正确,请检查是否包含员工编号、姓名、桌号列')
     }
     
     parseProgress.value = `已解析 ${parsedData.length} 条记录，正在上传...`

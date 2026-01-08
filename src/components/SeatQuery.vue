@@ -19,8 +19,8 @@
     <!-- 主卡片：红包/卷轴风格 -->
     <div class="card red-packet">
       <div class="card-header">
-        <div class="logo-seal">SEAT</div>
-        <h1>座位查询</h1>
+        <div class="logo-seal">TABLE</div>
+        <h1>桌号查询</h1>
       </div>
       
       <p class="subtitle">新春大吉 · 恭喜发财 · 诸事顺遂</p>
@@ -38,7 +38,7 @@
       </div>
       
       <button class="search-btn" @click="searchSeat">
-        <div class="btn-content">查询座位</div>
+        <div class="btn-content">查询桌号</div>
       </button>
       
       <div class="hint-tag">
@@ -112,7 +112,7 @@ const searchSeat = () => {
         <div class="info-row"><label>姓名</label><span>${emp.name}</span></div>
       </div>
       <div class="seat-badge-container">
-        <div class="seat-label">座位号</div>
+        <div class="seat-label">桌号</div>
         <div class="seat-badge">${emp.seat}</div>
       </div>
     `)

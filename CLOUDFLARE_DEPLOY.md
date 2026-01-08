@@ -55,7 +55,7 @@ Message-Distribution/
 ├── functions/             # Cloudflare Pages Functions
 │   └── api/
 │       ├── check-auth.js  # POST /api/check-auth - 验证管理员口令
-│       ├── data.js        # GET /api/data - 获取座位数据
+│       ├── data.js        # GET /api/data - 获取桌号数据
 │       └── upload.js      # POST /api/upload - 上传数据（接收 JSON）
 └── src/                   # Vue 源码
 ```
@@ -90,7 +90,7 @@ Cloudflare Workers/Functions 运行时不支持 Node.js 的完整生态，包括
 
 | 功能       | 状态        | 说明                        |
 | ---------- | ----------- | --------------------------- |
-| 座位查询   | ✅ 完全支持 | 从 KV 读取数据              |
+| 桌号查询   | ✅ 完全支持 | 从 KV 读取数据              |
 | 管理员登录 | ✅ 完全支持 | -                           |
 | 上传 Excel | ✅ 完全支持 | 前端解析 Excel，后端存 JSON |
 | 生成二维码 | ✅ 完全支持 | 在前端生成                  |

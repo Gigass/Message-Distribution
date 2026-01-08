@@ -40,12 +40,13 @@ const parseExcelBuffer = (buffer) => {
     return rawData.map(row => {
         const idKey = Object.keys(row).find(k => k.includes('号') && (k.includes('工') || k.includes('编')));
         const nameKey = Object.keys(row).find(k => k.includes('名'));
-        const seatKey = Object.keys(row).find(k => k.includes('座'));
+        // 优先识别"桌号"或"桌",其次识别"座位"或"座"
+        const seatKey = Object.keys(row).find(k => k.includes('桌')) || Object.keys(row).find(k => k.includes('座'));
 
         return {
             id: row[idKey || '员工编号'] || '',
             name: row[nameKey || '姓名'] || '',
-            seat: row[seatKey || '座位号'] || ''
+            seat: row[seatKey || '桌号'] || ''
         };
     }).filter(item => item.id && item.name);
 };
