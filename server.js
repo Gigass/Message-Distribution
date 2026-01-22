@@ -336,6 +336,34 @@ app.post('/api/lottery/reset', authMiddleware, (req, res) => {
     res.json({ success: true, message: '抽奖系统已重置 (中奖记录已清空，奖品库存已恢复)' });
 });
 
+// 7. 作废/重抽 (需认证)
+app.post('/api/lottery/invalidate', authMiddleware, (req, res) => {
+    const { id } = req.body; // winner record id, not employee id
+    if (!id) return res.status(400).json({ success: false, message: 'ID必填' });
+
+    const winnerIndex = CACHE_WINNERS.findIndex(w => w.id === id);
+    if (winnerIndex === -1) {
+        return res.status(404).json({ success: false, message: '记录不存在' });
+    }
+
+    const winnerRecord = CACHE_WINNERS[winnerIndex];
+    
+    // 1. 移除中奖记录
+    CACHE_WINNERS.splice(winnerIndex, 1);
+    
+    // 2. 从排除名单中移除人员 (允许再次中奖)
+    EXCLUDED_IDS.delete(String(winnerRecord.winnerId));
+    
+    // 3. 恢复奖品库存
+    const prize = CACHE_PRIZES.find(p => p.id === winnerRecord.prizeId);
+    if (prize) {
+        prize.remaining++;
+    }
+
+    saveLotteryData();
+    res.json({ success: true, message: '已作废该中奖记录，奖品已回库' });
+});
+
 // 启动服务器
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);

@@ -55,6 +55,11 @@
           :class="{ active: currentTab === 'prize' }" 
           @click="currentTab = 'prize'"
         >奖品管理</button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: currentTab === 'winners' }" 
+          @click="currentTab = 'winners'"
+        >中奖记录</button>
       </div>
 
       <!-- Tab 1: 数据上传 -->
@@ -157,6 +162,25 @@
         </button>
         <p class="subtitle center">包含：中奖记录、去重名单 (库存将恢复)</p>
       </div>
+
+      <!-- Tab 3: 中奖记录管理 (补抽) -->
+      <div v-if="currentTab === 'winners'">
+        <h1>中奖记录</h1>
+        <p class="subtitle">人员管理 /// 作废/补抽</p>
+        
+        <div class="prize-list"> <!-- Reuse prize-list style -->
+           <div v-for="w in winnerList" :key="w.id" class="prize-item">
+             <div class="prize-info">
+               <span class="level-tag" :class="w.prizeLevel">{{ w.prizeLevelLabel }}</span>
+               <span class="prize-name" style="margin-left:5px">{{ w.prizeName }}</span>
+               <span style="font-size:12px; margin-left:10px">➡️ {{ w.winnerName }} ({{ w.winnerId }})</span>
+             </div>
+             <button class="delete-btn" @click="invalidateWinner(w.id)" title="作废重抽">×</button>
+           </div>
+           <div v-if="winnerList.length === 0" class="empty-hint">暂无中奖记录</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- QR Code Modal -->
@@ -191,7 +215,12 @@ const passwordInput = ref('')
 const verifiedToken = ref('') // 存储通过验证的 Token
 const isChecking = ref(false)
 const loginError = ref(false)
-const currentTab = ref('data') // 'data' | 'prize'
+const isChecking = ref(false)
+const loginError = ref(false)
+const currentTab = ref('data') // 'data' | 'prize' | 'winners'
+
+// 上传相关
+const selectedFile = ref(null)
 
 // 上传相关
 const selectedFile = ref(null)
@@ -280,6 +309,41 @@ const resetLottery = async () => {
     }
 }
 
+// 中奖记录管理
+const winnerList = ref([])
+
+const fetchWinners = async () => {
+  try {
+    const res = await fetch('/api/lottery/winners')
+    const json = await res.json()
+    if (json.success) winnerList.value = json.data
+  } catch(e) { console.error(e) }
+}
+
+const invalidateWinner = async (recordId) => {
+    if(!confirm('确定作废该条记录吗？\n该员工将可以重新参与抽奖，奖品库存会+1。')) return
+    try {
+        const res = await fetch('/api/lottery/invalidate', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-auth-token': verifiedToken.value 
+            },
+            body: JSON.stringify({ id: recordId })
+        })
+        const json = await res.json()
+        if(json.success) {
+            alert(json.message)
+            fetchWinners() // Refresh
+            fetchPrizes()  // Refresh stock
+        } else {
+            alert(json.message)
+        }
+    } catch(e) {
+        alert('操作失败')
+    }
+}
+
 // 登录逻辑
 const handleLogin = async () => {
   if (!passwordInput.value) return
@@ -297,6 +361,7 @@ const handleLogin = async () => {
       isAuthenticated.value = true
       verifiedToken.value = passwordInput.value
       fetchPrizes() // 登录成功后获取奖品
+      fetchWinners()
     } else {
       loginError.value = true
       passwordInput.value = ''

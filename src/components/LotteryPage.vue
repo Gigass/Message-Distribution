@@ -1,5 +1,22 @@
 <template>
   <div class="container full-width">
+    <!-- 登录遮罩 -->
+    <div v-if="!isAuthenticated" class="auth-overlay">
+       <div class="auth-box">
+          <h2>🔐 抽奖授权</h2>
+          <input 
+            type="password" 
+            v-model="passwordInput" 
+            placeholder="请输入管理员口令"
+            @keypress.enter="handleLogin"
+          >
+          <button @click="handleLogin" :disabled="isChecking">
+             {{ isChecking ? '验证中...' : '解锁系统' }}
+          </button>
+          <div v-if="loginError" class="error-msg">口令错误</div>
+       </div>
+    </div>
+
     <!-- 背景装饰 -->
     <div class="decoration lantern-left">
       <div class="lantern-string"></div>
@@ -160,6 +177,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import confetti from 'canvas-confetti'
 
 // State
 const prizes = ref([])
@@ -170,6 +188,13 @@ const selectedPrizeId = ref(null)
 const drawCount = ref(1)
 const currentResult = ref(null)
 const showResultModal = ref(false)
+
+// Auth
+const isAuthenticated = ref(false)
+const passwordInput = ref('')
+const verifiedToken = ref('') // Store token
+const isChecking = ref(false)
+const loginError = ref(false)
 
 // Mock names for rolling
 const mockNames = ['张三', '李四', '王五', '赵六', '钱七', '孙八', '周九', '吴十', '郑十一', '王十二']
@@ -196,16 +221,41 @@ const recentWinners = computed(() => {
 
 // Lifecycle
 onMounted(() => {
-  fetchData()
-  // Generate some firework effects (omitted for brevity, can be added if needed)
+  // Wait for auth to fetch sensitive data if we wanted to secure read too, 
+  // but currently read is public in server.js, so we can fetch prizes/winners immediately if we want.
+  // However, let's keep it simple: Fetch data immediately for display, but block Draw.
+  // A better UX for "Screen" is to login first.
 })
+
+const handleLogin = async () => {
+  isChecking.value = true
+  loginError.value = false
+  try {
+    const res = await fetch('/api/check-auth', {
+      method: 'POST',
+      headers: { 'x-auth-token': passwordInput.value }
+    })
+    const json = await res.json()
+    if (json.success) {
+      isAuthenticated.value = true
+      verifiedToken.value = passwordInput.value
+      fetchData() // Fetch after login
+    } else {
+      loginError.value = true
+    }
+  } catch (e) {
+    loginError.value = true
+  } finally {
+    isChecking.value = false
+  }
+}
 
 // Logic
 const fetchData = async () => {
    try {
      const [pRes, wRes] = await Promise.all([
-       fetch('/api/prizes'),
-       fetch('/api/lottery/winners')
+       fetch('/api/prizes'), // Read is public
+       fetch('/api/lottery/winners') // Read is public
      ])
      const pData = await pRes.json()
      const wData = await wRes.json()
@@ -260,8 +310,7 @@ const startDraw = async () => {
        method: 'POST',
        headers: { 
          'Content-Type': 'application/json',
-         // Assume authenticated for now, or add token if we decide to protect frontend
-         'x-auth-token': 'MEILIN1!' // Hardcoded for demo simplicity in frontend-only
+         'x-auth-token': verifiedToken.value
        },
        body: JSON.stringify({
          prizeId: selectedPrizeId.value, // null for random
@@ -280,6 +329,7 @@ const startDraw = async () => {
          currentResult.value = result.data
          showResultModal.value = true
          fetchData() // Refresh data
+         fireFireworks() // 🎉 FIREWORKS!
        } else {
          alert(result.message)
        }
@@ -294,6 +344,29 @@ const startDraw = async () => {
 
 const closeModal = () => {
   showResultModal.value = false
+}
+
+const fireFireworks = () => {
+  var duration = 3 * 1000;
+  var animationEnd = Date.now() + duration;
+  var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+  function randomInRange(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+
+  var interval = setInterval(function() {
+    var timeLeft = animationEnd - Date.now();
+
+    if (timeLeft <= 0) {
+      return clearInterval(interval);
+    }
+
+    var particleCount = 50 * (timeLeft / duration);
+    // since particles fall down, start a bit higher than random
+    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+  }, 250);
 }
 
 </script>
@@ -557,6 +630,32 @@ h2 {
 }
 .admin-link a { color: rgba(255,255,255,0.3); text-decoration: none; font-size: 12px; }
 .admin-link a:hover { color: white; }
+
+.admin-link a:hover { color: white; }
+
+/* Auth Overlay */
+.auth-overlay {
+  position: fixed; inset: 0; background: #000; z-index: 9999;
+  display: flex; justify-content: center; align-items: center;
+}
+.auth-box {
+  background: var(--cny-red); padding: 40px; border-radius: 20px; border: 4px solid var(--cny-gold);
+  text-align: center; width: 300px;
+}
+.auth-box h2 {
+  color: var(--cny-gold); margin-bottom: 20px; font-size: 24px;
+}
+.auth-box input {
+  width: 100%; padding: 10px; margin-bottom: 20px; border: none; font-size: 16px;
+  background: rgba(255,255,255,0.9); color: black;
+}
+.auth-box button {
+  width: 100%; padding: 12px; background: var(--cny-gold); color: var(--cny-red);
+  border: none; font-weight: bold; font-size: 18px; cursor: pointer;
+  transition: transform 0.1s;
+}
+.auth-box button:active { transform: scale(0.95); }
+.error-msg { color: #fff; margin-top: 10px; font-weight: bold; background: rgba(0,0,0,0.2); padding: 5px; }
 
 /* Responsive */
 @media (max-width: 900px) {
