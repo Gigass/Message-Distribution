@@ -229,6 +229,13 @@ app.get('/api/lottery/winners', (req, res) => {
     res.json({ success: true, data: CACHE_WINNERS.reverse() }); // 最新在钱
 });
 
+// 4.1 清空奖品库 (新增)
+app.post('/api/prizes/reset', authMiddleware, (req, res) => {
+    CACHE_PRIZES = [];
+    saveLotteryData();
+    res.json({ success: true, message: '奖品库已清空' });
+});
+
 // 5. 执行抽奖 (需认证)
 app.post('/api/lottery/draw', authMiddleware, (req, res) => {
     const { prizeId, count = 1 } = req.body;
@@ -321,8 +328,8 @@ app.post('/api/lottery/draw', authMiddleware, (req, res) => {
     });
 });
 
-// 6. 重置抽奖 (需认证)
-app.post('/api/lottery/reset', authMiddleware, (req, res) => {
+// 6. 重置中奖数据 (仅清空记录和恢复库存)
+app.post('/api/lottery/reset-winners', authMiddleware, (req, res) => {
     // 清空名单和排除集合
     CACHE_WINNERS = [];
     EXCLUDED_IDS = new Set();
@@ -333,7 +340,7 @@ app.post('/api/lottery/reset', authMiddleware, (req, res) => {
     });
 
     saveLotteryData();
-    res.json({ success: true, message: '抽奖系统已重置 (中奖记录已清空，奖品库存已恢复)' });
+    res.json({ success: true, message: '中奖数据已重置，奖品库存已恢复' });
 });
 
 // 7. 作废/重抽 (需认证)

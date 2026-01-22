@@ -156,11 +156,20 @@
 
         <div class="divider"></div>
 
-        <button class="action-btn danger" @click="resetLottery">
-          <span>⚠️ 重置抽奖数据</span>
-          <div class="btn-shadow"></div>
-        </button>
-        <p class="subtitle center">包含：中奖记录、去重名单 (库存将恢复)</p>
+        <div class="divider"></div>
+
+        <div class="reset-actions">
+           <button class="action-btn warning" @click="resetWinners">
+             <span>🔄 重置中奖数据</span>
+             <div class="btn-shadow"></div>
+           </button>
+           
+           <button class="action-btn danger" @click="resetPrizes">
+             <span>🗑️ 清空奖品库</span>
+             <div class="btn-shadow"></div>
+           </button>
+        </div>
+        <p class="subtitle center">重置中奖：清空人员记录并恢复库存 /// 清空奖品：删除所有奖品配置</p>
       </div>
 
       <!-- Tab 3: 中奖记录管理 (补抽) -->
@@ -289,10 +298,26 @@ const deletePrize = async (id) => {
     }
 }
 
-const resetLottery = async () => {
-    if (!confirm('严重警告：这将清空所有中奖记录和去重名单！\n确定要重置吗？')) return
+const resetWinners = async () => {
+    if (!confirm('确定要【重置中奖数据】吗？\n所有中奖记录将被清空，奖品库存将自动恢复。')) return
     try {
-        const res = await fetch('/api/lottery/reset', {
+        const res = await fetch('/api/lottery/reset-winners', {
+            method: 'POST',
+            headers: { 'x-auth-token': verifiedToken.value }
+        })
+        const json = await res.json()
+        alert(json.message)
+        fetchPrizes()
+        fetchWinners()
+    } catch (e) {
+        alert('重置失败')
+    }
+}
+
+const resetPrizes = async () => {
+    if (!confirm('严重警告：确定要【清空所有奖品】吗？\n这将删除所有奖品配置，操作不可撤销！')) return
+    try {
+        const res = await fetch('/api/prizes/reset', {
             method: 'POST',
             headers: { 'x-auth-token': verifiedToken.value }
         })
@@ -300,7 +325,7 @@ const resetLottery = async () => {
         alert(json.message)
         fetchPrizes()
     } catch (e) {
-        alert('重置失败')
+        alert('清空失败')
     }
 }
 
@@ -898,6 +923,13 @@ input:focus { border-color: var(--neon-green); }
 .action-btn.small span { font-size: 14px; }
 .action-btn.danger .btn-shadow { background: #ff0055; }
 .action-btn.danger:hover span { color: #ff0055; background: #222; }
+
+.action-btn.warning .btn-shadow { background: #ffbd2e; }
+.action-btn.warning:hover span { color: #ffbd2e; background: #222; }
+
+.reset-actions {
+  display: flex; gap: 20px;
+}
 
 .prize-list {
   margin-bottom: 30px;
