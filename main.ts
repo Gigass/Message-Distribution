@@ -3,6 +3,7 @@ import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs";
 
 const ADMIN_PASSWORD = Deno.env.get("ADMIN_PASSWORD") || "MEILIN1!";
 let CACHE_DATA: any[] = [];
+const TEMPLATE_PATHS = ["public/info.xlsx", "info.xlsx", "dist/info.xlsx"];
 
 // 工具函数：解析 Excel Buffer 并格式化数据
 function parseExcelBuffer(buffer: Uint8Array) {
@@ -31,11 +32,31 @@ function parseExcelBuffer(buffer: Uint8Array) {
 // 初始化：尝试从本地加载 info.xlsx 数据到内存
 async function loadLocalData() {
   try {
-    const fileBuffer = await Deno.readFile("info.xlsx");
-    CACHE_DATA = parseExcelBuffer(fileBuffer);
-    console.log(`[System] 已加载本地数据: ${CACHE_DATA.length} 条记录`);
+    let fileBuffer: Uint8Array | null = null;
+    let usedPath = "";
+
+    for (const filePath of TEMPLATE_PATHS) {
+      try {
+        fileBuffer = await Deno.readFile(filePath);
+        usedPath = filePath;
+        break;
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) {
+          throw error;
+        }
+      }
+    }
+
+    if (fileBuffer) {
+      CACHE_DATA = parseExcelBuffer(fileBuffer);
+      console.log(
+        `[System] Loaded local data (${usedPath}): ${CACHE_DATA.length} records`
+      );
+    } else {
+      console.log("[System] Template file not found, starting with empty data");
+    }
   } catch (_error) {
-    console.log("[System] 本地 info.xlsx 不存在，初始数据为空");
+    console.log("[System] Failed to load local template");
   }
 }
 
@@ -149,15 +170,8 @@ async function handler(req: Request): Promise<Response> {
       CACHE_DATA = newData;
       console.log(`[Upload] 内存数据已更新: ${newData.length} 条记录`);
 
-      // 尝试写入磁盘（Deno Deploy 上会失败，但不影响功能）
-      try {
-        await Deno.writeFile("info.xlsx", buffer);
-        console.log("[Upload] 文件已持久化到 info.xlsx");
-      } catch (_writeErr) {
-        console.warn(
-          "[Upload Warning] 无法写入磁盘 (只读文件系统)，仅更新了内存数据"
-        );
-      }
+      // 不再持久化文件：数据仅存于内存（可接入数据库存储）
+      console.log("[Upload] File persistence disabled; data stored in memory");
 
       return new Response(
         JSON.stringify({ success: true, message: "更新成功！(实时生效)" }),

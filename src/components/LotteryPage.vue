@@ -129,12 +129,9 @@
                       <div class="winner-single-seat">桌号: {{ currentResult[0].winnerSeat }}</div>
                     </div>
                     <div v-else class="winner-grid">
-                      <div v-for="winner in currentResult" :key="winner.id" class="winner-card-slot">
-                         <div class="winner-avatar">{{ winner.winnerName ? winner.winnerName[0] : '🎉' }}</div>
-                         <div class="winner-info">
-                           <div class="w-name">{{ winner.winnerName }}</div>
-                           <div class="w-id">桌号: {{ winner.winnerSeat }}</div>
-                         </div>
+                      <div v-for="winner in currentResult" :key="winner.id" class="winner-tile">
+                        <div class="winner-tile-name">{{ winner.winnerName }}</div>
+                        <div class="winner-tile-seat">桌号: {{ winner.winnerSeat }}</div>
                       </div>
                     </div>
                   </div>
@@ -912,6 +909,26 @@ h2 {
   overflow: auto;
   padding: 4px 8px;
 }
+.winner-tile {
+  flex: 0 1 calc(50% - 10px);
+  min-width: 160px;
+  background: #ffffff;
+  border: 2px solid #111;
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: center;
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+}
+.winner-tile-name {
+  font-size: clamp(20px, 3.5vw, 34px);
+  font-weight: 900;
+  color: #111;
+}
+.winner-tile-seat {
+  font-size: clamp(12px, 2vw, 18px);
+  font-weight: 800;
+  color: #b03a00;
+}
 .winner-single {
   flex: 1;
   width: 100%;
@@ -934,28 +951,6 @@ h2 {
   color: #b03a00;
 }
 
-.winner-card-slot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: #fdfdfd;
-  border: 1px solid #e0e0e0;
-  padding: 12px 14px;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.18);
-  min-width: 140px;
-  gap: 6px;
-}
-.winner-card-slot .winner-avatar { width: 50px; height: 50px; font-size: 24px; margin-bottom: 2px; }
-.winner-card-slot .winner-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  text-align: center;
-}
-.winner-card-slot .w-name { font-size: 18px; }
-.winner-card-slot .w-id { font-size: 12px; color: #777; }
 
 /* Control Plate */
 .machine-controls-plate {

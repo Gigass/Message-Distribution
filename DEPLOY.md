@@ -61,7 +61,7 @@ vercel
 
 1. **数据持久化**：由于 Vercel 是 Serverless 环境，每次部署或实例重启后，内存中的数据会丢失。如需持久化，建议：
 
-   - 将 `info.xlsx` 提交到 Git 仓库
+   - 将 `public/info.xlsx` 提交到 Git 仓库
    - 或使用外部存储服务（如 Vercel Blob Storage）
 
 2. **冷启动**：首次访问可能需要几秒钟启动时间

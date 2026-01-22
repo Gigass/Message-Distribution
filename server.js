@@ -8,6 +8,14 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const TEMPLATE_PATHS = [
+    path.resolve(process.cwd(), 'public', 'info.xlsx'),
+    path.resolve(process.cwd(), 'info.xlsx'),
+    path.resolve(process.cwd(), 'dist', 'info.xlsx')
+];
+
+const resolveTemplatePath = () => TEMPLATE_PATHS.find(p => fs.existsSync(p));
+
 // ==========================================
 // 多口令配置系统
 // ==========================================
@@ -154,8 +162,9 @@ TOKENS_CONFIG.forEach(token => {
 // 初始化：尝试从本地加载 info.xlsx 数据到默认缓存
 const loadLocalData = () => {
     try {
-        if (fs.existsSync('info.xlsx')) {
-            const fileBuffer = fs.readFileSync('info.xlsx');
+        const templatePath = resolveTemplatePath();
+        if (templatePath) {
+            const fileBuffer = fs.readFileSync(templatePath);
             const parsedData = parseExcelBuffer(fileBuffer);
             // 加载到所有 tokenId 的数据缓存中（员工数据是共享的）
             TOKENS_CONFIG.forEach(token => {
@@ -207,8 +216,8 @@ app.get('/api/data', (req, res) => {
 
 // API: 下载 Excel 模板
 app.get('/api/template', (req, res) => {
-    const templatePath = path.resolve(process.cwd(), 'info.xlsx');
-    if (!fs.existsSync(templatePath)) {
+    const templatePath = resolveTemplatePath();
+    if (!templatePath) {
         return res.status(404).json({ success: false, message: '模板文件不存在' });
     }
     res.download(templatePath, 'info.xlsx');
@@ -252,13 +261,7 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
         });
         console.log(`[Upload] 内存数据已更新: ${newData.length} 条记录`);
 
-        // 2. 尝试写入磁盘 (兼容本地开发环境)
-        try {
-            fs.writeFileSync('info.xlsx', req.file.buffer);
-            console.log('[Upload] 文件已持久化到 info.xlsx');
-        } catch (writeErr) {
-            console.warn('[Upload Warning] 无法写入磁盘 (可能是只读文件系统)，仅更新了内存数据:', writeErr.message);
-        }
+        // 2. 不再持久化文件：数据仅更新到内存（可接入数据库存储）
 
         res.json({ success: true, message: '更新成功！(实时生效)' });
     } catch (error) {
