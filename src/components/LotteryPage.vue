@@ -228,8 +228,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import confetti from 'canvas-confetti'
+import lotterySound from '../assests/lottery.wav'
+import winnerSound from '../assests/winner.wav'
 
 // State
 const prizes = ref([])
@@ -251,6 +253,49 @@ const isChecking = ref(false)
 const loginError = ref(false)
 
 let rollingTimer = null
+let rollingAudio = null
+let winnerAudio = null
+
+const initAudio = () => {
+  if (rollingAudio && winnerAudio) return
+  rollingAudio = new Audio(lotterySound)
+  rollingAudio.loop = true
+  rollingAudio.volume = 0.6
+  rollingAudio.preload = 'auto'
+
+  winnerAudio = new Audio(winnerSound)
+  winnerAudio.loop = false
+  winnerAudio.volume = 0.9
+  winnerAudio.preload = 'auto'
+}
+
+const playRollingAudio = async () => {
+  initAudio()
+  if (!rollingAudio) return
+  try {
+    rollingAudio.currentTime = 0
+    await rollingAudio.play()
+  } catch (e) {
+    // Ignore autoplay restrictions
+  }
+}
+
+const stopRollingAudio = () => {
+  if (!rollingAudio) return
+  rollingAudio.pause()
+  rollingAudio.currentTime = 0
+}
+
+const playWinnerAudio = async () => {
+  initAudio()
+  if (!winnerAudio) return
+  try {
+    winnerAudio.currentTime = 0
+    await winnerAudio.play()
+  } catch (e) {
+    // Ignore autoplay restrictions
+  }
+}
 
 // Computed
 const activePrizes = computed(() => {
@@ -274,7 +319,11 @@ const recentWinners = computed(() => {
 // Lifecycle
 onMounted(() => {
   // Initial fetch for public data
+  initAudio()
   fetchData()
+})
+onBeforeUnmount(() => {
+  stopRollingAudio()
 })
 
 const handleLogin = async () => {
@@ -375,6 +424,7 @@ const triggerLeverAction = async () => {
 
    // 2. Animate Lever
    isLeverPulled.value = true
+   playRollingAudio()
    
    // 3. Wait for lever "down" animation to hit bottom then trigger start
    setTimeout(() => {
@@ -443,34 +493,38 @@ const startDraw = async () => {
            currentDelay = currentDelay * 1.1
            setTimeout(runDecelerationStep, currentDelay)
          } else {
-           // Final Step: Show Winner
-           rollingName.value = winnerName
-           
-           // Slight pause before showing modal
-           setTimeout(() => {
-             isRolling.value = false
-             currentResult.value = result.data
-             showResultModal.value = true
-             fetchData() 
-             fireFireworks() 
-           }, 800)
-         }
-       }
+       // Final Step: Show Winner
+       rollingName.value = winnerName
+       
+       // Slight pause before showing modal
+       setTimeout(() => {
+         stopRollingAudio()
+         isRolling.value = false
+         currentResult.value = result.data
+         showResultModal.value = true
+         fetchData() 
+         fireFireworks() 
+         playWinnerAudio()
+       }, 800)
+      }
+    }
 
        // Kick off deceleration
        runDecelerationStep()
 
-     } else {
-       clearInterval(rollingTimer)
-       isRolling.value = false
-       alert(result.message)
-     }
-
-   } catch (e) {
+   } else {
      clearInterval(rollingTimer)
+     stopRollingAudio()
      isRolling.value = false
-     alert('抽奖失败，请检查网络')
+     alert(result.message)
    }
+
+  } catch (e) {
+    clearInterval(rollingTimer)
+    stopRollingAudio()
+    isRolling.value = false
+    alert('抽奖失败，请检查网络')
+  }
 }
 
 const closeModal = () => {
