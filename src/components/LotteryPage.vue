@@ -449,7 +449,7 @@ const fireFireworks = () => {
   grid-template-rows: 100%;
   width: 100vw;
   height: 100vh;
-  padding: 20px;
+  padding: 15px 20px;
   box-sizing: border-box;
   gap: 20px;
   position: relative;
@@ -475,7 +475,8 @@ const fireFireworks = () => {
 }
 .panel-card.center-panel {
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-top: 15px;
   background: rgba(255, 253, 240, 0.85); /* Slightly transparent to show some texture, or opaque */
 }
 
@@ -533,19 +534,19 @@ h2 {
   box-shadow: 3px 3px 0px black;
 }
 
-/* Lanterns (Restored & Pop-ified) */
+/* Lanterns (Restored & Pop-ified) - 叠加显示不占空间 */
 .decoration {
-  position: absolute;
-  top: -20px;
-  z-index: 50;
+  position: fixed;
+  top: 20px;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   align-items: center;
   animation: swing 3s ease-in-out infinite alternate;
   pointer-events: none;
 }
-.lantern-left { left: 40px; }
-.lantern-right { right: 40px; }
+.lantern-left { left: 60px; }
+.lantern-right { right: 60px; }
 @keyframes swing {
   0% { transform: rotate(5deg); }
   100% { transform: rotate(-5deg); }
@@ -638,34 +639,34 @@ h2 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-bottom: 30px; 
+  margin-bottom: 10px; 
   position: relative; 
 }
 .year-tag {
   display: inline-block; background: black; color: var(--cny-gold);
-  padding: 6px 20px; border-radius: 50px; font-weight: 900; font-size: 16px; margin-bottom: 10px;
+  padding: 4px 16px; border-radius: 50px; font-weight: 900; font-size: 14px; margin-bottom: 6px;
   border: 2px solid var(--cny-gold);
 }
 .title-area h1 {
   display: inline-block;
-  font-size: 80px; 
+  font-size: 60px; 
   color: var(--cny-red); 
   background: var(--cny-gold);
-  margin: 10px 0 0 0;
-  padding: 5px 40px;
+  margin: 0;
+  padding: 4px 30px;
   border: 4px solid black;
   border-radius: 60px;
   font-weight: 900;
   text-shadow: none;
-  box-shadow: 10px 10px 0px black;
-  letter-spacing: 5px;
+  box-shadow: 8px 8px 0px black;
+  letter-spacing: 4px;
   font-family: 'Ma Shan Zheng', cursive, serif;
 }
 
 .rolling-display {
   width: 100%;
   max-width: 800px;
-  height: 240px;
+  height: 450px;
   background: var(--pop-white);
   border: 6px solid black;
   border-radius: 20px;
@@ -673,7 +674,7 @@ h2 {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
   position: relative;
   overflow: hidden;
 }
@@ -686,18 +687,18 @@ h2 {
   text-shadow: 4px 4px 0px var(--pop-cyan); 
 }
 .result-display { 
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; width: 100%; padding: 20px; overflow-y: auto; max-height: 100%; 
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 25px; width: 100%; padding: 30px; overflow-y: auto; max-height: 100%; 
 }
 .winner-card-new {
-  background: white; border: 3px solid black; padding: 10px; box-shadow: 5px 5px 0px rgba(0,0,0,0.2);
-  border-radius: 10px; display: flex; align-items: center; gap: 10px; min-width: 200px;
+  background: white; border: 4px solid black; padding: 18px 24px; box-shadow: 6px 6px 0px rgba(0,0,0,0.3);
+  border-radius: 12px; display: flex; align-items: center; gap: 15px; min-width: 260px;
 }
 .winner-avatar {
-  background: var(--cny-red); color: white; width: 45px; height: 45px; border: 2px solid black;
-  border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px;
+  background: var(--cny-red); color: white; width: 60px; height: 60px; border: 3px solid black;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 26px;
 }
-.w-name { font-weight: 900; font-size: 20px; color: black; }
-.w-id { font-size: 12px; color: #666; }
+.w-name { font-weight: 900; font-size: 24px; color: black; }
+.w-id { font-size: 14px; color: #666; font-weight: 600; }
 
 /* Pop Art Button */
 .draw-btn {
