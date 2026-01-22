@@ -215,12 +215,7 @@ const passwordInput = ref('')
 const verifiedToken = ref('') // 存储通过验证的 Token
 const isChecking = ref(false)
 const loginError = ref(false)
-const isChecking = ref(false)
-const loginError = ref(false)
 const currentTab = ref('data') // 'data' | 'prize' | 'winners'
-
-// 上传相关
-const selectedFile = ref(null)
 
 // 上传相关
 const selectedFile = ref(null)
