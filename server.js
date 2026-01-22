@@ -7,18 +7,100 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = 'MEILIN1!'; // 管理员口令，可在此修改
 
-// 全局内存缓存 (适配 Deno Deploy 等只读文件系统环境)
-let CACHE_DATA = [];
-let CACHE_PRIZES = [];
-let CACHE_WINNERS = [];
-let EXCLUDED_IDS = new Set();
-const DATA_FILE = 'lottery-data.json';
+// ==========================================
+// 多口令配置系统
+// ==========================================
+
+// 口令配置加载
+const TOKENS_FILE = 'tokens.json';
+let TOKENS_CONFIG = [];
+
+const loadTokensConfig = () => {
+    try {
+        if (fs.existsSync(TOKENS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf8'));
+            TOKENS_CONFIG = data.tokens || [];
+            console.log(`[System] 已加载 ${TOKENS_CONFIG.length} 个口令配置`);
+        } else {
+            console.warn('[System] tokens.json 不存在，使用默认口令');
+            TOKENS_CONFIG = [{ id: 'default', password: 'MEILIN1!', label: '默认' }];
+        }
+    } catch (error) {
+        console.error('[System] 加载口令配置失败:', error.message);
+        TOKENS_CONFIG = [{ id: 'default', password: 'MEILIN1!', label: '默认' }];
+    }
+};
+
+// 根据密码查找对应的口令配置
+const findTokenByPassword = (password) => {
+    return TOKENS_CONFIG.find(t => t.password === password);
+};
+
+// ==========================================
+// 按口令隔离的数据缓存
+// ==========================================
+
+// 数据缓存: tokenId -> { data, prizes, winners, excludedIds }
+const DATA_CACHE = new Map();
+
+// 获取或初始化某个 tokenId 的数据缓存
+const getTokenCache = (tokenId) => {
+    if (!DATA_CACHE.has(tokenId)) {
+        DATA_CACHE.set(tokenId, {
+            data: [],
+            prizes: [],
+            winners: [],
+            excludedIds: new Set()
+        });
+    }
+    return DATA_CACHE.get(tokenId);
+};
+
+// 获取某个 tokenId 的数据文件路径
+const getDataFilePath = (tokenId) => {
+    return `lottery-data-${tokenId}.json`;
+};
+
+// 加载某个 tokenId 的抽奖数据
+const loadLotteryData = (tokenId) => {
+    const filePath = getDataFilePath(tokenId);
+    const cache = getTokenCache(tokenId);
+    
+    try {
+        if (fs.existsSync(filePath)) {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            cache.prizes = data.prizes || [];
+            cache.winners = data.winners || [];
+            cache.excludedIds = new Set(data.excludedIds || []);
+            console.log(`[System] 已加载 ${tokenId} 的抽奖数据: ${cache.prizes.length} 种奖品, ${cache.winners.length} 位中奖者`);
+        }
+    } catch (error) {
+        console.warn(`[System] 加载 ${tokenId} 抽奖数据失败:`, error.message);
+    }
+};
+
+// 保存某个 tokenId 的抽奖数据
+const saveLotteryData = (tokenId) => {
+    const filePath = getDataFilePath(tokenId);
+    const cache = getTokenCache(tokenId);
+    
+    try {
+        const data = {
+            prizes: cache.prizes,
+            winners: cache.winners,
+            excludedIds: Array.from(cache.excludedIds)
+        };
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.warn(`[System] 无法持久化 ${tokenId} 抽奖数据:`, error.message);
+    }
+};
 
 // 启用 CORS 和 JSON 解析
 app.use(cors());
 app.use(express.json());
+
 // Logging Middleware
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -61,13 +143,26 @@ const parseExcelBuffer = (buffer) => {
     }).filter(item => item.id && item.name);
 };
 
-// 初始化：尝试从本地加载 info.xlsx 数据到内存
+// 初始化：加载口令配置
+loadTokensConfig();
+
+// 初始化：为所有已配置的口令预加载数据
+TOKENS_CONFIG.forEach(token => {
+    loadLotteryData(token.id);
+});
+
+// 初始化：尝试从本地加载 info.xlsx 数据到默认缓存
 const loadLocalData = () => {
     try {
         if (fs.existsSync('info.xlsx')) {
             const fileBuffer = fs.readFileSync('info.xlsx');
-            CACHE_DATA = parseExcelBuffer(fileBuffer);
-            console.log(`[System] 已加载本地数据: ${CACHE_DATA.length} 条记录`);
+            const parsedData = parseExcelBuffer(fileBuffer);
+            // 加载到所有 tokenId 的数据缓存中（员工数据是共享的）
+            TOKENS_CONFIG.forEach(token => {
+                const cache = getTokenCache(token.id);
+                cache.data = parsedData;
+            });
+            console.log(`[System] 已加载本地数据: ${parsedData.length} 条记录`);
         } else {
             console.log('[System] 本地 info.xlsx 不存在，初始数据为空');
         }
@@ -76,60 +171,69 @@ const loadLocalData = () => {
     }
 };
 
-// 加载抽奖数据
-const loadLotteryData = () => {
-    try {
-        if (fs.existsSync(DATA_FILE)) {
-            const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-            CACHE_PRIZES = data.prizes || [];
-            CACHE_WINNERS = data.winners || [];
-            EXCLUDED_IDS = new Set(data.excludedIds || []);
-            console.log(`[System] 已加载抽奖数据: ${CACHE_PRIZES.length} 种奖品, ${CACHE_WINNERS.length} 位中奖者`);
-        }
-    } catch (error) {
-        console.warn('[System] 加载抽奖数据失败 (可能是首次运行):', error.message);
-    }
-};
-
-// 保存抽奖数据
-const saveLotteryData = () => {
-    try {
-        const data = {
-            prizes: CACHE_PRIZES,
-            winners: CACHE_WINNERS,
-            excludedIds: Array.from(EXCLUDED_IDS)
-        };
-        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    } catch (error) {
-        console.warn('[System] 无法持久化抽奖数据:', error.message);
-    }
-};
-
-// 立即加载一次
 loadLocalData();
-loadLotteryData();
 
-// 中间件：口令验证
+// 中间件：口令验证（支持多口令）
 const authMiddleware = (req, res, next) => {
-    const token = req.headers['x-auth-token'];
-    if (token !== ADMIN_PASSWORD) {
+    const password = req.headers['x-auth-token'];
+    const tokenConfig = findTokenByPassword(password);
+    
+    if (!tokenConfig) {
         return res.status(401).json({ success: false, message: '口令错误，无权操作' });
     }
+    
+    // 将 tokenId 附加到请求对象，供后续路由使用
+    req.tokenId = tokenConfig.id;
+    req.tokenLabel = tokenConfig.label || tokenConfig.id;
     next();
 };
 
-// API: 验证口令 (新增)
+// API: 验证口令 (返回 tokenId 和 label)
 app.post('/api/check-auth', authMiddleware, (req, res) => {
-    res.json({ success: true, message: 'Verified' });
+    res.json({ 
+        success: true, 
+        message: 'Verified',
+        tokenId: req.tokenId,
+        tokenLabel: req.tokenLabel
+    });
 });
 
-// API: 获取 Excel 数据 (直接返回内存数据)
+// API: 获取 Excel 数据 (需要认证以获取对应口令的数据)
 app.get('/api/data', (req, res) => {
-    res.json({ success: true, data: CACHE_DATA });
+    // 公开接口，返回默认的员工数据
+    const defaultCache = getTokenCache('default');
+    res.json({ success: true, data: defaultCache.data });
+});
+
+// API: 下载 Excel 模板
+app.get('/api/template', (req, res) => {
+    const templatePath = path.resolve(process.cwd(), 'info.xlsx');
+    if (!fs.existsSync(templatePath)) {
+        return res.status(404).json({ success: false, message: '模板文件不存在' });
+    }
+    res.download(templatePath, 'info.xlsx');
 });
 
 // API: 上传文件 (内存处理 + 尝试持久化)
 app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
+    // 支持 JSON 方式上传（前端解析后的数据）
+    if (req.body && req.body.data) {
+        const newData = req.body.data;
+        if (!Array.isArray(newData) || newData.length === 0) {
+            return res.status(400).json({ success: false, message: '数据为空或格式不正确' });
+        }
+
+        // 更新所有口令的员工数据（员工数据是共享的）
+        TOKENS_CONFIG.forEach(token => {
+            const cache = getTokenCache(token.id);
+            cache.data = newData;
+        });
+        console.log(`[Upload] 内存数据已更新: ${newData.length} 条记录`);
+
+        return res.json({ success: true, message: '更新成功！(实时生效)' });
+    }
+
+    // 传统文件上传方式
     if (!req.file) {
         return res.status(400).json({ success: false, message: '请选择文件' });
     }
@@ -141,12 +245,14 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
             return res.status(400).json({ success: false, message: '文件为空或格式不正确' });
         }
         
-        // 更新内存
-        CACHE_DATA = newData;
+        // 更新所有口令的员工数据
+        TOKENS_CONFIG.forEach(token => {
+            const cache = getTokenCache(token.id);
+            cache.data = newData;
+        });
         console.log(`[Upload] 内存数据已更新: ${newData.length} 条记录`);
 
         // 2. 尝试写入磁盘 (兼容本地开发环境)
-        // Deno Deploy 等只读环境会报错，捕获忽略即可
         try {
             fs.writeFileSync('info.xlsx', req.file.buffer);
             console.log('[Upload] 文件已持久化到 info.xlsx');
@@ -162,32 +268,34 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
 });
 
 // 处理 SPA 路由：所有非 API 请求返回 index.html
-app.use((req, res) => {
+// 注意：这个中间件必须在所有 API 路由之后
+const spaHandler = (req, res) => {
     res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'), (err) => {
         if (err) {
             console.error('Error serving index.html:', err);
             res.status(500).send(err.message);
         }
     });
-});
+};
 
 // 错误处理中间件 (Multer 错误等) - 必须放在最后
-app.use((err, req, res, next) => {
+const errorHandler = (err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         return res.status(400).json({ success: false, message: '上传错误: ' + err.message });
     } else if (err) {
         return res.status(400).json({ success: false, message: err.message });
     }
     next();
-});
+};
 
 // ==========================================
-// 抽奖系统 API
+// 抽奖系统 API（数据按口令隔离）
 // ==========================================
 
-// 1. 获取奖品列表
-app.get('/api/prizes', (req, res) => {
-    res.json({ success: true, data: CACHE_PRIZES });
+// 1. 获取奖品列表（需认证）
+app.get('/api/prizes', authMiddleware, (req, res) => {
+    const cache = getTokenCache(req.tokenId);
+    res.json({ success: true, data: cache.prizes });
 });
 
 // 2. 添加/更新奖品 (需认证)
@@ -197,6 +305,8 @@ app.post('/api/prizes', authMiddleware, (req, res) => {
         return res.status(400).json({ success: false, message: '名称和数量必填' });
     }
 
+    const cache = getTokenCache(req.tokenId);
+    
     const newPrize = {
         id: id || Date.now().toString(), // 简单ID生成
         name,
@@ -207,51 +317,55 @@ app.post('/api/prizes', authMiddleware, (req, res) => {
     };
 
     // 如果是更新（带ID），则替换
-    const existIndex = CACHE_PRIZES.findIndex(p => p.id === newPrize.id);
+    const existIndex = cache.prizes.findIndex(p => p.id === newPrize.id);
     if (existIndex >= 0) {
         // 保留剩余数量计算逻辑：如果总数变了，差异加到剩余里
-        const diff = newPrize.count - CACHE_PRIZES[existIndex].count;
-        newPrize.remaining = CACHE_PRIZES[existIndex].remaining + diff;
+        const diff = newPrize.count - cache.prizes[existIndex].count;
+        newPrize.remaining = cache.prizes[existIndex].remaining + diff;
         if (newPrize.remaining < 0) newPrize.remaining = 0;
-        CACHE_PRIZES[existIndex] = newPrize;
+        cache.prizes[existIndex] = newPrize;
     } else {
-        CACHE_PRIZES.push(newPrize);
+        cache.prizes.push(newPrize);
     }
     
-    saveLotteryData();
+    saveLotteryData(req.tokenId);
     res.json({ success: true, message: '奖品已保存', data: newPrize });
 });
 
 // 3. 删除奖品 (需认证)
 app.delete('/api/prizes/:id', authMiddleware, (req, res) => {
     const { id } = req.params;
-    CACHE_PRIZES = CACHE_PRIZES.filter(p => p.id !== id);
-    saveLotteryData();
+    const cache = getTokenCache(req.tokenId);
+    cache.prizes = cache.prizes.filter(p => p.id !== id);
+    saveLotteryData(req.tokenId);
     res.json({ success: true, message: '奖品已删除' });
 });
 
-// 4. 获取中奖名单
-app.get('/api/lottery/winners', (req, res) => {
-    res.json({ success: true, data: CACHE_WINNERS.reverse() }); // 最新在钱
+// 4. 获取中奖名单（需认证）
+app.get('/api/lottery/winners', authMiddleware, (req, res) => {
+    const cache = getTokenCache(req.tokenId);
+    res.json({ success: true, data: [...cache.winners].reverse() }); // 最新在前
 });
 
-// 4.1 清空奖品库 (新增)
+// 4.1 清空奖品库 (需认证)
 app.post('/api/prizes/reset', authMiddleware, (req, res) => {
-    CACHE_PRIZES = [];
-    saveLotteryData();
+    const cache = getTokenCache(req.tokenId);
+    cache.prizes = [];
+    saveLotteryData(req.tokenId);
     res.json({ success: true, message: '奖品库已清空' });
 });
 
 // 5. 执行抽奖 (需认证)
 app.post('/api/lottery/draw', authMiddleware, (req, res) => {
     const { prizeId, count = 1 } = req.body;
+    const cache = getTokenCache(req.tokenId);
     
     // 1. 获取符合抽奖资格的人员
-    if (CACHE_DATA.length === 0) {
+    if (cache.data.length === 0) {
         return res.status(400).json({ success: false, message: '人员名单为空，请先上传数据' });
     }
     
-    const availableCandidates = CACHE_DATA.filter(emp => !EXCLUDED_IDS.has(String(emp.id)));
+    const availableCandidates = cache.data.filter(emp => !cache.excludedIds.has(String(emp.id)));
     
     if (availableCandidates.length === 0) {
         return res.status(400).json({ success: false, message: '所有人都已中奖，无人可抽' });
@@ -260,7 +374,7 @@ app.post('/api/lottery/draw', authMiddleware, (req, res) => {
     // 2. 确定目标奖品
     let targetPrize;
     if (prizeId) {
-        targetPrize = CACHE_PRIZES.find(p => p.id === prizeId);
+        targetPrize = cache.prizes.find(p => p.id === prizeId);
         if (!targetPrize) {
             return res.status(404).json({ success: false, message: '奖品不存在' });
         }
@@ -269,7 +383,7 @@ app.post('/api/lottery/draw', authMiddleware, (req, res) => {
         }
     } else {
         // 随机模式：只从有剩余的奖品里抽
-        const availablePrizes = CACHE_PRIZES.filter(p => p.remaining > 0);
+        const availablePrizes = cache.prizes.filter(p => p.remaining > 0);
         if (availablePrizes.length === 0) {
             return res.status(400).json({ success: false, message: '所有奖品已抽完' });
         }
@@ -302,7 +416,7 @@ app.post('/api/lottery/draw', authMiddleware, (req, res) => {
 
     winners.forEach(w => {
         // 标记已中奖
-        EXCLUDED_IDS.add(String(w.id));
+        cache.excludedIds.add(String(w.id));
         
         // 创建记录
         const record = {
@@ -318,14 +432,14 @@ app.post('/api/lottery/draw', authMiddleware, (req, res) => {
         };
         
         newRecords.push(record);
-        CACHE_WINNERS.push(record);
+        cache.winners.push(record);
     });
 
     // 扣减库存
     targetPrize.remaining -= winners.length;
 
     // 持久化
-    saveLotteryData();
+    saveLotteryData(req.tokenId);
 
     res.json({
         success: true,
@@ -336,16 +450,18 @@ app.post('/api/lottery/draw', authMiddleware, (req, res) => {
 
 // 6. 重置中奖数据 (仅清空记录和恢复库存)
 app.post('/api/lottery/reset-winners', authMiddleware, (req, res) => {
+    const cache = getTokenCache(req.tokenId);
+    
     // 清空名单和排除集合
-    CACHE_WINNERS = [];
-    EXCLUDED_IDS = new Set();
+    cache.winners = [];
+    cache.excludedIds = new Set();
     
     // 恢复奖品库存
-    CACHE_PRIZES.forEach(p => {
+    cache.prizes.forEach(p => {
         p.remaining = p.count;
     });
 
-    saveLotteryData();
+    saveLotteryData(req.tokenId);
     res.json({ success: true, message: '中奖数据已重置，奖品库存已恢复' });
 });
 
@@ -354,32 +470,40 @@ app.post('/api/lottery/invalidate', authMiddleware, (req, res) => {
     const { id } = req.body; // winner record id, not employee id
     if (!id) return res.status(400).json({ success: false, message: 'ID必填' });
 
-    const winnerIndex = CACHE_WINNERS.findIndex(w => w.id === id);
+    const cache = getTokenCache(req.tokenId);
+    const winnerIndex = cache.winners.findIndex(w => w.id === id);
     if (winnerIndex === -1) {
         return res.status(404).json({ success: false, message: '记录不存在' });
     }
 
-    const winnerRecord = CACHE_WINNERS[winnerIndex];
+    const winnerRecord = cache.winners[winnerIndex];
     
     // 1. 移除中奖记录
-    CACHE_WINNERS.splice(winnerIndex, 1);
+    cache.winners.splice(winnerIndex, 1);
     
     // 2. 从排除名单中移除人员 (允许再次中奖)
-    EXCLUDED_IDS.delete(String(winnerRecord.winnerId));
+    cache.excludedIds.delete(String(winnerRecord.winnerId));
     
     // 3. 恢复奖品库存
-    const prize = CACHE_PRIZES.find(p => p.id === winnerRecord.prizeId);
+    const prize = cache.prizes.find(p => p.id === winnerRecord.prizeId);
     if (prize) {
         prize.remaining++;
     }
 
-    saveLotteryData();
+    saveLotteryData(req.tokenId);
     res.json({ success: true, message: '已作废该中奖记录，奖品已回库' });
 });
+
+// SPA 路由处理（放在所有 API 之后）
+app.use(spaHandler);
+
+// 错误处理中间件
+app.use(errorHandler);
 
 // 启动服务器
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
     console.log(`Front-end: http://localhost:${PORT}/`);
     console.log(`Back-end:  http://localhost:${PORT}/admin`);
+    console.log(`口令配置: ${TOKENS_CONFIG.length} 个口令已加载`);
 });

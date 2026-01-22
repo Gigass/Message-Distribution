@@ -40,7 +40,11 @@
     <div v-else class="card neo-brutalism admin-card">
       <div class="top-bar">
         <span class="status-badge">系统已解锁</span>
-        <button class="logout-btn" @click="logout">退出</button>
+        <div class="top-actions">
+          <button class="mini-btn" @click="refreshAll">刷新数据</button>
+          <router-link class="mini-link" to="/lottery">进入抽奖</router-link>
+          <button class="logout-btn" @click="logout">退出</button>
+        </div>
       </div>
 
       <!-- Tab Navigation -->
@@ -112,6 +116,29 @@
             <span>获取 APP 二维码</span>
             <div class="btn-shadow"></div>
           </button>
+        </div>
+
+        <a class="action-btn secondary template-btn" href="/api/template" download>
+          <span>下载 Excel 模板</span>
+          <div class="btn-shadow"></div>
+        </a>
+
+        <div class="divider"></div>
+
+        <h2 class="section-title">人员列表</h2>
+        <p class="list-meta">当前系统人员：{{ employees.length }} 人</p>
+        <div class="data-list">
+          <div class="data-row header">
+            <span>工号</span>
+            <span>姓名</span>
+            <span>桌号</span>
+          </div>
+          <div v-for="person in employees" :key="person.id" class="data-row">
+            <span class="cell id">{{ person.id }}</span>
+            <span class="cell name">{{ person.name }}</span>
+            <span class="cell seat">{{ person.seat }}</span>
+          </div>
+          <div v-if="employees.length === 0" class="empty-hint">暂无人员数据</div>
         </div>
       </div>
 
@@ -214,7 +241,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import QRCode from 'qrcode'
 import * as XLSX from 'xlsx'
 
@@ -237,6 +264,7 @@ const parseProgress = ref('') // 解析进度提示
 // 奖品管理相关
 const prizes = ref([])
 const newPrize = ref({ name: '', count: '', level: 'participation' })
+const employees = ref([])
 
 const getLevelLabel = (level) => {
   const map = {
@@ -250,13 +278,31 @@ const getLevelLabel = (level) => {
 }
 
 const fetchPrizes = async () => {
+    if (!verifiedToken.value) return
     try {
-        const res = await fetch('/api/prizes')
+        const res = await fetch('/api/prizes', {
+            headers: { 'x-auth-token': verifiedToken.value }
+        })
         const json = await res.json()
         if (json.success) prizes.value = json.data
     } catch (e) {
         console.error(e)
     }
+}
+
+const fetchEmployees = async () => {
+    try {
+        const headers = verifiedToken.value ? { 'x-auth-token': verifiedToken.value } : {}
+        const res = await fetch('/api/data', { headers })
+        const json = await res.json()
+        if (json.success) employees.value = json.data
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+const refreshAll = async () => {
+    await Promise.all([fetchPrizes(), fetchWinners(), fetchEmployees()])
 }
 
 const addPrize = async () => {
@@ -333,8 +379,11 @@ const resetPrizes = async () => {
 const winnerList = ref([])
 
 const fetchWinners = async () => {
+  if (!verifiedToken.value) return
   try {
-    const res = await fetch('/api/lottery/winners')
+    const res = await fetch('/api/lottery/winners', {
+      headers: { 'x-auth-token': verifiedToken.value }
+    })
     const json = await res.json()
     if (json.success) winnerList.value = json.data
   } catch(e) { console.error(e) }
@@ -382,6 +431,7 @@ const handleLogin = async () => {
       verifiedToken.value = passwordInput.value
       fetchPrizes() // 登录成功后获取奖品
       fetchWinners()
+      fetchEmployees()
     } else {
       loginError.value = true
       passwordInput.value = ''
@@ -399,6 +449,7 @@ const logout = () => {
   verifiedToken.value = ''
   selectedFile.value = null
   statusMessage.value = ''
+  employees.value = []
 }
 
 // 文件选择逻辑
@@ -490,6 +541,7 @@ const uploadFile = async () => {
       statusType.value = 'success'
       statusMessage.value = `> 成功：已更新 ${parsedData.length} 条记录`
       parseProgress.value = ''
+      fetchEmployees()
       setTimeout(() => {
         selectedFile.value = null
         if (fileInputRef.value) fileInputRef.value.value = ''
@@ -648,12 +700,14 @@ input:focus { border-color: var(--neon-green); }
 /* Button */
 .action-btn {
   position: relative;
+  display: block;
   width: 100%;
   height: 60px;
   background: transparent;
   border: none;
   cursor: pointer;
   margin-bottom: 20px;
+  text-decoration: none;
 }
 .action-btn.secondary {
   margin-top: 10px;
@@ -727,6 +781,11 @@ input:focus { border-color: var(--neon-green); }
   border-bottom: 2px solid #333;
   padding-bottom: 15px;
 }
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 .status-badge {
   background: var(--neon-green);
@@ -735,6 +794,20 @@ input:focus { border-color: var(--neon-green); }
   padding: 2px 6px;
   font-size: 12px;
 }
+
+.mini-btn,
+.mini-link {
+  background: transparent;
+  border: 1px solid #555;
+  color: #555;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  text-decoration: none;
+}
+.mini-btn:hover,
+.mini-link:hover { color: var(--neon-cyan); border-color: var(--neon-cyan); }
 
 .logout-btn {
   background: transparent;
@@ -810,6 +883,44 @@ input:focus { border-color: var(--neon-green); }
   border-color: #ff0055;
   color: #ff0055;
 }
+.template-btn { margin-top: 0; }
+
+.section-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 900;
+  color: white;
+  margin: 0 0 10px;
+}
+.list-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 10px;
+}
+.data-list {
+  border: 1px solid #333;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #000;
+}
+.data-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #333;
+  color: #ddd;
+  font-size: 12px;
+}
+.data-row.header {
+  background: #111;
+  color: #fff;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.data-row .cell.name { font-weight: 900; color: #fff; }
+.data-row .cell.seat { color: var(--neon-green); }
 
 .progress-box {
   padding: 15px;

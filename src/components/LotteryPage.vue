@@ -106,18 +106,33 @@
               <div class="rolling-display">
                 <div class="rolling-content" :class="{ 'is-rolling': isRolling }">
                   <div v-if="!currentResult && !isRolling" class="placeholder">
-                    {{ selectedPrize ? `准备抽取: ${selectedPrize.name}` : 'PULL TO WIN' }}
+                    <template v-if="selectedPrize">
+                      <div class="placeholder-title">
+                        {{ selectedPrize.levelLabel || getLevelLabel(selectedPrize.level) }}
+                      </div>
+                      <div class="placeholder-sub">奖品：{{ selectedPrize.name }}</div>
+                    </template>
+                    <template v-else>
+                      <div class="placeholder-title">准备好了吗？！</div>
+                    </template>
                   </div>
                   <div v-else-if="isRolling" class="rolling-text blur-effect">
                     {{ rollingName }}
                   </div>
                   <div v-else class="result-display">
-                    <div v-for="winner in currentResult" :key="winner.id" class="winner-card-slot">
-                       <div class="winner-avatar">{{ winner.winnerName[0] }}</div>
-                       <div class="winner-info">
-                         <div class="w-name">{{ winner.winnerName }}</div>
-                         <div class="w-id">Seat: {{ winner.winnerSeat }}</div>
-                       </div>
+                    <div class="result-banner">
+                      <span class="banner-label">奖品</span>
+                      <span class="banner-name">{{ currentResult?.[0]?.prizeName }}</span>
+                    </div>
+                    <div class="winner-grid">
+                      <div v-for="winner in currentResult" :key="winner.id" class="winner-card-slot">
+                         <div class="winner-avatar">{{ winner.winnerName ? winner.winnerName[0] : '🎉' }}</div>
+                         <div class="winner-info">
+                           <div class="w-name">{{ winner.winnerName }}</div>
+                           <div class="w-prize">奖品：{{ winner.prizeName }}！</div>
+                           <div class="w-id">桌号: {{ winner.winnerSeat }}</div>
+                         </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -159,6 +174,9 @@
       <div class="side-panel right">
         <div class="panel-card glass-gold">
           <h2>🏆 幸运榜单 🏆</h2>
+          <div class="panel-actions">
+            <button class="panel-refresh" @click="refreshData">刷新数据</button>
+          </div>
           <div class="winners-list">
              <div v-for="record in recentWinners" :key="record.id" class="winner-item">
                <div class="rank-icon" :class="record.prizeLevel">
@@ -285,10 +303,12 @@ const handleLogin = async () => {
 // Logic
 const fetchData = async () => {
    try {
+     const headers = verifiedToken.value ? { 'x-auth-token': verifiedToken.value } : {}
+     
      const [pRes, wRes, dRes] = await Promise.all([
-       fetch('/api/prizes'),
-       fetch('/api/lottery/winners'),
-       fetch('/api/data') // Get real candidates
+       fetch('/api/prizes', { headers }),
+       fetch('/api/lottery/winners', { headers }),
+       fetch('/api/data') // 员工数据是公开的
      ])
      const pData = await pRes.json()
      const wData = await wRes.json()
@@ -300,6 +320,10 @@ const fetchData = async () => {
    } catch(e) {
      console.error(e)
    }
+}
+
+const refreshData = async () => {
+  await fetchData()
 }
 
 const selectPrize = (prize) => {
@@ -318,6 +342,17 @@ const selectRandomPrize = () => {
 const getLevelIcon = (level) => {
   const map = { special:'👑', first:'🥇', second:'🥈', third:'🥉', participation:'🧧' }
   return map[level] || '🎁'
+}
+
+const getLevelLabel = (level) => {
+  const map = {
+    special: '特等奖',
+    first: '一等奖',
+    second: '二等奖',
+    third: '三等奖',
+    participation: '参与奖'
+  }
+  return map[level] || level || '幸运奖'
 }
 
 // Lever Action
@@ -813,16 +848,89 @@ h2 {
   filter: blur(2px);
   transform: scaleY(1.1);
 }
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  color: #333;
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding: 0 20px;
+}
+.placeholder-title {
+  font-size: clamp(28px, 5vw, 52px);
+  line-height: 1.1;
+}
+.placeholder-sub {
+  font-size: clamp(18px, 3vw, 32px);
+  color: #555;
+  font-weight: 700;
+}
+.result-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+}
+.result-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe3a0 0%, #ffd24a 100%);
+  color: #7a2a00;
+  font-weight: 900;
+  letter-spacing: 1px;
+  font-size: clamp(16px, 3vw, 26px);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+}
+.result-banner .banner-label {
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+.winner-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-height: 170px;
+  overflow: auto;
+  padding: 4px 8px;
+}
 
 .winner-card-slot {
-  display: flex; flex-direction: column; align-items: center;
-  background: #fdfdfd; border: 1px solid #ccc; padding: 10px;
-  border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fdfdfd;
+  border: 1px solid #e0e0e0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  min-width: 140px;
+  gap: 6px;
 }
-.winner-card-slot .winner-avatar { width: 50px; height: 50px; font-size: 24px; margin-bottom: 5px; }
+.winner-card-slot .winner-avatar { width: 50px; height: 50px; font-size: 24px; margin-bottom: 2px; }
+.winner-card-slot .winner-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
 .winner-card-slot .w-name { font-size: 18px; }
-.winner-card-slot .w-id { font-size: 12px; color: #888; }
+.winner-card-slot .w-prize { font-size: 14px; color: #b03a00; font-weight: 800; }
+.winner-card-slot .w-id { font-size: 12px; color: #777; }
 
 /* Control Plate */
 .machine-controls-plate {
@@ -917,6 +1025,26 @@ h2 {
 }
 
 /* Winners List */
+.panel-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.panel-refresh {
+  background: #fff5d6;
+  border: 3px solid #000;
+  color: #000;
+  font-weight: 900;
+  padding: 6px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0px #000;
+  transition: transform 0.1s;
+}
+.panel-refresh:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000;
+}
 .winners-list {
   flex: 1; overflow-y: auto;
 }
@@ -1052,4 +1180,3 @@ h2 {
   .container.full-width { height: auto; min-height: 100vh; overflow-y: auto; }
 }
 </style>
-

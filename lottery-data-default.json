@@ -1,0 +1,36 @@
+{
+  "prizes": [
+    {
+      "id": "1769067430566",
+      "name": "iphone6",
+      "count": 2,
+      "remaining": 1,
+      "level": "participation",
+      "levelLabel": "参与奖"
+    },
+    {
+      "id": "1769067444440",
+      "name": "iphone6",
+      "count": 11,
+      "remaining": 11,
+      "level": "participation",
+      "levelLabel": "参与奖"
+    }
+  ],
+  "winners": [
+    {
+      "id": "17690677422772g7zz",
+      "prizeId": "1769067430566",
+      "prizeName": "iphone6",
+      "prizeLevel": "participation",
+      "prizeLevelLabel": "参与奖",
+      "winnerId": "DT027",
+      "winnerName": "李强",
+      "winnerSeat": "3号桌",
+      "winTime": "2026-01-22T07:42:22.277Z"
+    }
+  ],
+  "excludedIds": [
+    "DT027"
+  ]
+}
