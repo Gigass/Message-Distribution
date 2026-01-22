@@ -185,6 +185,7 @@ import confetti from 'canvas-confetti'
 // State
 const prizes = ref([])
 const winners = ref([])
+const candidates = ref([]) // Real data
 const isRolling = ref(false)
 const rollingName = ref('***')
 const selectedPrizeId = ref(null)
@@ -199,9 +200,7 @@ const verifiedToken = ref('') // Store token
 const isChecking = ref(false)
 const loginError = ref(false)
 
-// Mock names for rolling
-const mockNames = ['张三', '李四', '王五', '赵六', '钱七', '孙八', '周九', '吴十', '郑十一', '王十二']
-let rollingInterval = null
+let rollingTimer = null
 
 // Computed
 const activePrizes = computed(() => {
@@ -224,10 +223,8 @@ const recentWinners = computed(() => {
 
 // Lifecycle
 onMounted(() => {
-  // Wait for auth to fetch sensitive data if we wanted to secure read too, 
-  // but currently read is public in server.js, so we can fetch prizes/winners immediately if we want.
-  // However, let's keep it simple: Fetch data immediately for display, but block Draw.
-  // A better UX for "Screen" is to login first.
+  // Initial fetch for public data
+  fetchData()
 })
 
 const handleLogin = async () => {
@@ -242,7 +239,7 @@ const handleLogin = async () => {
     if (json.success) {
       isAuthenticated.value = true
       verifiedToken.value = passwordInput.value
-      fetchData() // Fetch after login
+      fetchData() // Fetch sensitive/fresh data
     } else {
       loginError.value = true
     }
@@ -256,15 +253,18 @@ const handleLogin = async () => {
 // Logic
 const fetchData = async () => {
    try {
-     const [pRes, wRes] = await Promise.all([
-       fetch('/api/prizes'), // Read is public
-       fetch('/api/lottery/winners') // Read is public
+     const [pRes, wRes, dRes] = await Promise.all([
+       fetch('/api/prizes'),
+       fetch('/api/lottery/winners'),
+       fetch('/api/data') // Get real candidates
      ])
      const pData = await pRes.json()
      const wData = await wRes.json()
+     const dData = await dRes.json()
      
      if(pData.success) prizes.value = pData.data
      if(wData.success) winners.value = wData.data
+     if(dData.success) candidates.value = dData.data
    } catch(e) {
      console.error(e)
    }
@@ -288,6 +288,7 @@ const getLevelIcon = (level) => {
   return map[level] || '🎁'
 }
 
+// Draw Logic with Deceleration
 const startDraw = async () => {
    if (isRolling.value) return
    
@@ -298,13 +299,15 @@ const startDraw = async () => {
      return
    }
 
-   // 1. Start Rolling Animation
+   // 1. Start Fast Rolling (Phase 1)
    isRolling.value = true
    currentResult.value = null
-   let rollIdx = 0
-   rollingInterval = setInterval(() => {
-      rollingName.value = mockNames[rollIdx % mockNames.length]
-      rollIdx++
+   
+   // Use real candidates or fallback
+   const namePool = candidates.value.length > 0 ? candidates.value.map(c => c.name) : ['张三', '李四', '王五']
+   
+   rollingTimer = setInterval(() => {
+      rollingName.value = namePool[Math.floor(Math.random() * namePool.length)]
    }, 50)
 
    // 2. Call API
@@ -316,30 +319,61 @@ const startDraw = async () => {
          'x-auth-token': verifiedToken.value
        },
        body: JSON.stringify({
-         prizeId: selectedPrizeId.value, // null for random
+         prizeId: selectedPrizeId.value, 
          count: drawCount.value
        })
      })
      
      const result = await res.json()
      
-     // Artificial delay for tension
-     setTimeout(() => {
-       clearInterval(rollingInterval)
-       isRolling.value = false
+     if (result.success) {
+       // Stop the fast interval
+       clearInterval(rollingTimer)
        
-       if (result.success) {
-         currentResult.value = result.data
-         showResultModal.value = true
-         fetchData() // Refresh data
-         fireFireworks() // 🎉 FIREWORKS!
-       } else {
-         alert(result.message)
+       // Start Deceleration (Phase 2)
+       // We want ~5 seconds of slowing down. 
+       // Start at 50ms, multiply by 1.1 each step.
+       // 50 * (1.1^n - 1) / 0.1 = 5000 => 1.1^n ≈ 11 => n ≈ 25 steps
+       
+       const winnerName = result.data[0].winnerName // Land on the first winner
+       let step = 0
+       const totalSteps = 25
+       let currentDelay = 50
+
+       const runDecelerationStep = () => {
+         step++
+         if (step < totalSteps) {
+           // Show random name
+           rollingName.value = namePool[Math.floor(Math.random() * namePool.length)]
+           // Increase delay
+           currentDelay = currentDelay * 1.1
+           setTimeout(runDecelerationStep, currentDelay)
+         } else {
+           // Final Step: Show Winner
+           rollingName.value = winnerName
+           
+           // Slight pause before showing modal
+           setTimeout(() => {
+             isRolling.value = false
+             currentResult.value = result.data
+             showResultModal.value = true
+             fetchData() 
+             fireFireworks() 
+           }, 800)
+         }
        }
-     }, 2000)
+
+       // Kick off deceleration
+       runDecelerationStep()
+
+     } else {
+       clearInterval(rollingTimer)
+       isRolling.value = false
+       alert(result.message)
+     }
 
    } catch (e) {
-     clearInterval(rollingInterval)
+     clearInterval(rollingTimer)
      isRolling.value = false
      alert('抽奖失败，请检查网络')
    }
