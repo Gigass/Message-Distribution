@@ -11,6 +11,10 @@ const ADMIN_PASSWORD = 'MEILIN1!'; // 管理员口令，可在此修改
 
 // 全局内存缓存 (适配 Deno Deploy 等只读文件系统环境)
 let CACHE_DATA = [];
+let CACHE_PRIZES = [];
+let CACHE_WINNERS = [];
+let EXCLUDED_IDS = new Set();
+const DATA_FILE = 'lottery-data.json';
 
 // 启用 CORS 和 JSON 解析
 app.use(cors());
@@ -66,8 +70,38 @@ const loadLocalData = () => {
     }
 };
 
+// 加载抽奖数据
+const loadLotteryData = () => {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+            CACHE_PRIZES = data.prizes || [];
+            CACHE_WINNERS = data.winners || [];
+            EXCLUDED_IDS = new Set(data.excludedIds || []);
+            console.log(`[System] 已加载抽奖数据: ${CACHE_PRIZES.length} 种奖品, ${CACHE_WINNERS.length} 位中奖者`);
+        }
+    } catch (error) {
+        console.warn('[System] 加载抽奖数据失败 (可能是首次运行):', error.message);
+    }
+};
+
+// 保存抽奖数据
+const saveLotteryData = () => {
+    try {
+        const data = {
+            prizes: CACHE_PRIZES,
+            winners: CACHE_WINNERS,
+            excludedIds: Array.from(EXCLUDED_IDS)
+        };
+        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.warn('[System] 无法持久化抽奖数据:', error.message);
+    }
+};
+
 // 立即加载一次
 loadLocalData();
+loadLotteryData();
 
 // 中间件：口令验证
 const authMiddleware = (req, res, next) => {
@@ -139,6 +173,167 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ success: false, message: err.message });
     }
     next();
+});
+
+// ==========================================
+// 抽奖系统 API
+// ==========================================
+
+// 1. 获取奖品列表
+app.get('/api/prizes', (req, res) => {
+    res.json({ success: true, data: CACHE_PRIZES });
+});
+
+// 2. 添加/更新奖品 (需认证)
+app.post('/api/prizes', authMiddleware, (req, res) => {
+    const { id, name, count, level, levelLabel } = req.body;
+    if (!name || !count) {
+        return res.status(400).json({ success: false, message: '名称和数量必填' });
+    }
+
+    const newPrize = {
+        id: id || Date.now().toString(), // 简单ID生成
+        name,
+        count: parseInt(count),
+        remaining: parseInt(count),
+        level: level || 'participation',
+        levelLabel: levelLabel || '参与奖'
+    };
+
+    // 如果是更新（带ID），则替换
+    const existIndex = CACHE_PRIZES.findIndex(p => p.id === newPrize.id);
+    if (existIndex >= 0) {
+        // 保留剩余数量计算逻辑：如果总数变了，差异加到剩余里
+        const diff = newPrize.count - CACHE_PRIZES[existIndex].count;
+        newPrize.remaining = CACHE_PRIZES[existIndex].remaining + diff;
+        if (newPrize.remaining < 0) newPrize.remaining = 0;
+        CACHE_PRIZES[existIndex] = newPrize;
+    } else {
+        CACHE_PRIZES.push(newPrize);
+    }
+    
+    saveLotteryData();
+    res.json({ success: true, message: '奖品已保存', data: newPrize });
+});
+
+// 3. 删除奖品 (需认证)
+app.delete('/api/prizes/:id', authMiddleware, (req, res) => {
+    const { id } = req.params;
+    CACHE_PRIZES = CACHE_PRIZES.filter(p => p.id !== id);
+    saveLotteryData();
+    res.json({ success: true, message: '奖品已删除' });
+});
+
+// 4. 获取中奖名单
+app.get('/api/lottery/winners', (req, res) => {
+    res.json({ success: true, data: CACHE_WINNERS.reverse() }); // 最新在钱
+});
+
+// 5. 执行抽奖 (需认证)
+app.post('/api/lottery/draw', authMiddleware, (req, res) => {
+    const { prizeId, count = 1 } = req.body;
+    
+    // 1. 获取符合抽奖资格的人员
+    if (CACHE_DATA.length === 0) {
+        return res.status(400).json({ success: false, message: '人员名单为空，请先上传数据' });
+    }
+    
+    const availableCandidates = CACHE_DATA.filter(emp => !EXCLUDED_IDS.has(String(emp.id)));
+    
+    if (availableCandidates.length === 0) {
+        return res.status(400).json({ success: false, message: '所有人都已中奖，无人可抽' });
+    }
+
+    // 2. 确定目标奖品
+    let targetPrize;
+    if (prizeId) {
+        targetPrize = CACHE_PRIZES.find(p => p.id === prizeId);
+        if (!targetPrize) {
+            return res.status(404).json({ success: false, message: '奖品不存在' });
+        }
+        if (targetPrize.remaining <= 0) {
+            return res.status(400).json({ success: false, message: '该奖品已抽完' });
+        }
+    } else {
+        // 随机模式：只从有剩余的奖品里抽
+        const availablePrizes = CACHE_PRIZES.filter(p => p.remaining > 0);
+        if (availablePrizes.length === 0) {
+            return res.status(400).json({ success: false, message: '所有奖品已抽完' });
+        }
+        // 简单随机选一个奖品种类
+        targetPrize = availablePrizes[Math.floor(Math.random() * availablePrizes.length)];
+    }
+
+    // 3. 确定抽取人数
+    // 不能超过剩余奖品数，也不能超过现有候选人数
+    const drawCount = Math.min(parseInt(count), targetPrize.remaining, availableCandidates.length);
+
+    if (drawCount <= 0) {
+        return res.status(400).json({ success: false, message: '无法抽取：名额不足或人员不足' });
+    }
+
+    // 4. 随机逻辑 (Fisher-Yates Shuffle 变体)
+    const winners = [];
+    // 复制一份候选人用于抽取，避免污染
+    const candidatesCopy = [...availableCandidates];
+    
+    for (let i = 0; i < drawCount; i++) {
+        const randomIndex = Math.floor(Math.random() * candidatesCopy.length);
+        const winner = candidatesCopy.splice(randomIndex, 1)[0]; // 移除并获取
+        winners.push(winner);
+    }
+
+    // 5. 更新状态
+    const newRecords = [];
+    const timestamp = new Date().toISOString();
+
+    winners.forEach(w => {
+        // 标记已中奖
+        EXCLUDED_IDS.add(String(w.id));
+        
+        // 创建记录
+        const record = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            prizeId: targetPrize.id,
+            prizeName: targetPrize.name,
+            prizeLevel: targetPrize.level,
+            prizeLevelLabel: targetPrize.levelLabel,
+            winnerId: w.id,
+            winnerName: w.name,
+            winnerSeat: w.seat,
+            winTime: timestamp
+        };
+        
+        newRecords.push(record);
+        CACHE_WINNERS.push(record);
+    });
+
+    // 扣减库存
+    targetPrize.remaining -= winners.length;
+
+    // 持久化
+    saveLotteryData();
+
+    res.json({
+        success: true,
+        message: `成功抽取 ${winners.length} 人`,
+        data: newRecords
+    });
+});
+
+// 6. 重置抽奖 (需认证)
+app.post('/api/lottery/reset', authMiddleware, (req, res) => {
+    // 清空名单和排除集合
+    CACHE_WINNERS = [];
+    EXCLUDED_IDS = new Set();
+    
+    // 恢复奖品库存
+    CACHE_PRIZES.forEach(p => {
+        p.remaining = p.count;
+    });
+
+    saveLotteryData();
+    res.json({ success: true, message: '抽奖系统已重置 (中奖记录已清空，奖品库存已恢复)' });
 });
 
 // 启动服务器

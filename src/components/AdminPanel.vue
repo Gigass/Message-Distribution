@@ -43,54 +43,119 @@
         <button class="logout-btn" @click="logout">退出</button>
       </div>
 
-      <h1>数据上传</h1>
-      <p class="subtitle">上传区域 /// 仅限 EXCEL 文件</p>
+      <!-- Tab Navigation -->
+      <div class="tab-nav">
+        <button 
+          class="tab-btn" 
+          :class="{ active: currentTab === 'data' }" 
+          @click="currentTab = 'data'"
+        >数据上传</button>
+        <button 
+          class="tab-btn" 
+          :class="{ active: currentTab === 'prize' }" 
+          @click="currentTab = 'prize'"
+        >奖品管理</button>
+      </div>
 
-      <div class="upload-zone" :class="{ 'has-file': selectedFile }" @click="triggerFileInput">
-        <input 
-          ref="fileInputRef"
-          type="file" 
-          accept=".xlsx, .xls"
-          class="hidden-input"
-          @change="handleFileSelect"
-        >
-        
-        <div class="zone-content">
-          <div v-if="!selectedFile">
-            <div class="icon-box">+</div>
-            <p>点击此处上传</p>
-            <span class="file-type-tag">.XLSX / .XLS</span>
+      <!-- Tab 1: 数据上传 -->
+      <div v-if="currentTab === 'data'">
+        <h1>数据上传</h1>
+        <p class="subtitle">上传区域 /// 仅限 EXCEL 文件</p>
+
+        <div class="upload-zone" :class="{ 'has-file': selectedFile }" @click="triggerFileInput">
+          <input 
+            ref="fileInputRef"
+            type="file" 
+            accept=".xlsx, .xls"
+            class="hidden-input"
+            @change="handleFileSelect"
+          >
+          
+          <div class="zone-content">
+            <div v-if="!selectedFile">
+              <div class="icon-box">+</div>
+              <p>点击此处上传</p>
+              <span class="file-type-tag">.XLSX / .XLS</span>
+            </div>
+            <div v-else>
+              <div class="file-icon">📄</div>
+              <p class="filename">{{ selectedFile.name }}</p>
+              <p class="warning">警告：将覆盖现有数据</p>
+            </div>
           </div>
-          <div v-else>
-            <div class="file-icon">📄</div>
-            <p class="filename">{{ selectedFile.name }}</p>
-            <p class="warning">警告：将覆盖现有数据</p>
-          </div>
+        </div>
+
+        <div v-if="parseProgress" class="progress-box">
+          {{ parseProgress }}
+        </div>
+
+        <div v-if="statusMessage" class="status-box" :class="statusType">
+          {{ statusMessage }}
+        </div>
+
+        <div class="action-row">
+          <button 
+            class="action-btn primary" 
+            :disabled="!selectedFile || isUploading"
+            @click="uploadFile"
+          >
+            <span>{{ isUploading ? '正在上传...' : '执行更新' }}</span>
+            <div class="btn-shadow"></div>
+          </button>
+          
+          <button class="action-btn secondary" @click="generateQrCode">
+            <span>获取 APP 二维码</span>
+            <div class="btn-shadow"></div>
+          </button>
         </div>
       </div>
 
-      <div v-if="parseProgress" class="progress-box">
-        {{ parseProgress }}
-      </div>
+      <!-- Tab 2: 奖品管理 -->
+      <div v-if="currentTab === 'prize'">
+        <h1>奖品管理</h1>
+        <p class="subtitle">奖品库配置 /// 抽奖设置</p>
 
-      <div v-if="statusMessage" class="status-box" :class="statusType">
-        {{ statusMessage }}
-      </div>
+        <!-- 添加奖品表单 -->
+        <div class="prize-form">
+          <div class="form-row">
+            <input v-model="newPrize.name" placeholder="奖品名称 (如: iPhone 16)" class="glitch-input small">
+          </div>
+          <div class="form-row flex">
+            <input v-model="newPrize.count" type="number" placeholder="数量" class="glitch-input small">
+             <select v-model="newPrize.level" class="glitch-select">
+              <option value="special">特等奖</option>
+              <option value="first">一等奖</option>
+              <option value="second">二等奖</option>
+              <option value="third">三等奖</option>
+              <option value="participation">参与奖</option>
+            </select>
+          </div>
+          <button class="action-btn secondary small" @click="addPrize">
+            <span>➕ 添加奖品</span>
+            <div class="btn-shadow"></div>
+          </button>
+        </div>
 
-      <div class="action-row">
-        <button 
-          class="action-btn primary" 
-          :disabled="!selectedFile || isUploading"
-          @click="uploadFile"
-        >
-          <span>{{ isUploading ? '正在上传...' : '执行更新' }}</span>
+        <!-- 奖品列表 -->
+        <div class="prize-list">
+          <div v-for="prize in prizes" :key="prize.id" class="prize-item">
+            <div class="prize-info">
+              <span class="level-tag" :class="prize.level">{{ getLevelLabel(prize.level) }}</span>
+              <span class="prize-name">{{ prize.name }}</span>
+              <span class="prize-count">x{{ prize.count }} (余:{{ prize.remaining }})</span>
+            </div>
+            <button class="delete-btn" @click="deletePrize(prize.id)">×</button>
+          </div>
+          <div v-if="prizes.length === 0" class="empty-hint">暂无奖品数据</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <button class="action-btn danger" @click="resetLottery">
+          <span>⚠️ 重置抽奖数据</span>
           <div class="btn-shadow"></div>
         </button>
-        
-        <button class="action-btn secondary" @click="generateQrCode">
-          <span>获取 APP 二维码</span>
-          <div class="btn-shadow"></div>
-        </button>
+        <p class="subtitle center">包含：中奖记录、去重名单 (库存将恢复)</p>
       </div>
     </div>
 
@@ -116,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import QRCode from 'qrcode'
 import * as XLSX from 'xlsx'
 
@@ -126,6 +191,7 @@ const passwordInput = ref('')
 const verifiedToken = ref('') // 存储通过验证的 Token
 const isChecking = ref(false)
 const loginError = ref(false)
+const currentTab = ref('data') // 'data' | 'prize'
 
 // 上传相关
 const selectedFile = ref(null)
@@ -134,6 +200,85 @@ const statusType = ref('')
 const isUploading = ref(false)
 const fileInputRef = ref(null)
 const parseProgress = ref('') // 解析进度提示
+
+// 奖品管理相关
+const prizes = ref([])
+const newPrize = ref({ name: '', count: '', level: 'participation' })
+
+const getLevelLabel = (level) => {
+  const map = {
+    special: '特等奖',
+    first: '一等奖',
+    second: '二等奖',
+    third: '三等奖',
+    participation: '参与奖'
+  }
+  return map[level] || level
+}
+
+const fetchPrizes = async () => {
+    try {
+        const res = await fetch('/api/prizes')
+        const json = await res.json()
+        if (json.success) prizes.value = json.data
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+const addPrize = async () => {
+    if(!newPrize.value.name || !newPrize.value.count) return
+    try {
+        const res = await fetch('/api/prizes', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-auth-token': verifiedToken.value 
+            },
+            body: JSON.stringify({
+                ...newPrize.value,
+                levelLabel: getLevelLabel(newPrize.value.level)
+            })
+        })
+        const json = await res.json()
+        if (json.success) {
+            newPrize.value = { name: '', count: '', level: 'participation' }
+            fetchPrizes()
+        } else {
+            alert(json.message)
+        }
+    } catch (e) {
+        alert('添加失败')
+    }
+}
+
+const deletePrize = async (id) => {
+    if (!confirm('确定删除该奖品吗？')) return
+    try {
+        await fetch(`/api/prizes/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-auth-token': verifiedToken.value }
+        })
+        fetchPrizes()
+    } catch (e) {
+        alert('删除失败')
+    }
+}
+
+const resetLottery = async () => {
+    if (!confirm('严重警告：这将清空所有中奖记录和去重名单！\n确定要重置吗？')) return
+    try {
+        const res = await fetch('/api/lottery/reset', {
+            method: 'POST',
+            headers: { 'x-auth-token': verifiedToken.value }
+        })
+        const json = await res.json()
+        alert(json.message)
+        fetchPrizes()
+    } catch (e) {
+        alert('重置失败')
+    }
+}
 
 // 登录逻辑
 const handleLogin = async () => {
@@ -151,6 +296,7 @@ const handleLogin = async () => {
     if (result.success) {
       isAuthenticated.value = true
       verifiedToken.value = passwordInput.value
+      fetchPrizes() // 登录成功后获取奖品
     } else {
       loginError.value = true
       passwordInput.value = ''
@@ -640,6 +786,103 @@ input:focus { border-color: var(--neon-green); }
 .red { background: #ff5f56; }
 .yellow { background: #ffbd2e; }
 .green { background: #27c93f; }
+
+/* Prize Management Styles */
+.tab-nav {
+  display: flex;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #444;
+}
+.tab-btn {
+  background: transparent;
+  color: #666;
+  border: none;
+  padding: 10px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  transition: all 0.3s;
+}
+.tab-btn:hover { color: white; }
+.tab-btn.active {
+  color: var(--neon-cyan);
+  border-bottom-color: var(--neon-cyan);
+}
+
+.prize-form {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 20px;
+  border: 1px solid #444;
+  margin-bottom: 20px;
+}
+.form-row { margin-bottom: 15px; }
+.form-row.flex { display: flex; gap: 10px; }
+
+.glitch-input.small {
+  padding: 10px;
+  font-size: 14px;
+  height: 40px;
+}
+.glitch-select {
+  background: black;
+  color: white;
+  border: 2px solid white;
+  padding: 0 10px;
+  height: 40px;
+  font-family: 'JetBrains Mono';
+  flex: 1;
+}
+
+.action-btn.small { height: 40px; margin-bottom: 0; }
+.action-btn.small span { font-size: 14px; }
+.action-btn.danger .btn-shadow { background: #ff0055; }
+.action-btn.danger:hover span { color: #ff0055; background: #222; }
+
+.prize-list {
+  margin-bottom: 30px;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #333;
+}
+.prize-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #333;
+  background: #000;
+}
+.prize-info { display: flex; align-items: center; gap: 10px; color: white; }
+.level-tag {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;
+}
+.level-tag.special { background: #ff0055; color: white; }
+.level-tag.first { background: #bf00ff; color: white; }
+.level-tag.second { background: #00ffff; color: black; }
+.level-tag.third { background: #ccff00; color: black; }
+.level-tag.participation { background: #555; color: white; }
+
+.prize-name { font-weight: bold; font-family: 'Noto Sans SC', sans-serif; }
+.prize-count { color: #888; font-size: 12px; }
+
+.delete-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #666;
+  width: 24px; height: 24px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.delete-btn:hover { color: red; border-color: red; }
+
+.empty-hint {
+  padding: 20px; text-align: center; color: #666; font-size: 12px;
+}
+.divider {
+  height: 1px; background: #333; margin: 30px 0;
+}
+.subtitle.center { text-align: center; margin-top: 10px; }
 
 .qr-modal h2 {
   font-family: 'JetBrains Mono', monospace;
