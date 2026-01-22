@@ -373,17 +373,18 @@ const fireFireworks = () => {
 
 <style scoped>
 .container.full-width {
-  width: 100%;
-  max-width: 100vw;
+  position: absolute; /* Override App.vue flex centering */
+  top: 0; left: 0;
+  width: 100vw;
   height: 100vh;
+  margin: 0;
   padding: 0;
   background: var(--cny-dark-red);
   background-image: 
     radial-gradient(circle at 15% 50%, rgba(255, 215, 0, 0.1) 0%, transparent 25%),
     radial-gradient(circle at 85% 30%, rgba(255, 215, 0, 0.1) 0%, transparent 25%);
-  display: flex;
-  justify-content: center;
   overflow: hidden;
+  display: block; /* Disable flex centering from parent inheritance if any */
 }
 
 /* Lanterns Reuse */
@@ -415,31 +416,35 @@ const fireFireworks = () => {
 
 /* Layout */
 .lottery-layout {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  padding: 40px;
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  grid-template-rows: 100%;
+  width: 100vw;
+  height: 100vh;
+  padding: 20px;
   box-sizing: border-box;
-  gap: 40px; /* Increase gap */
+  gap: 20px;
   position: relative;
   z-index: 10;
-  justify-content: space-between; /* Ensure spreading */
 }
 
 .side-panel {
-  flex: 0 0 300px; /* Fixed width */
-  max-width: 300px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
+.side-panel.left { order: 1; }
+.side-panel.right { order: 3; }
 
 .main-stage {
-  flex: 1; /* Take remaining space */
+  order: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 0; /* Prevent flex item from overflowing */
+  height: 100%;
+  min-width: 0;
 }
 
 /* Panels */
@@ -669,10 +674,34 @@ h2 {
 .error-msg { color: #fff; margin-top: 10px; font-weight: bold; background: rgba(0,0,0,0.2); padding: 5px; }
 
 /* Responsive */
+/* Responsive */
 @media (max-width: 900px) {
-  .lottery-layout { flex-direction: column; height: auto; overflow-y: auto; }
-  .side-panel { max-width: 100%; order: 2; }
-  .main-stage { order: 1; margin: 40px 0; }
-  .container.full-width { height: auto; min-height: 100vh; overflow-y: auto; }
+  .lottery-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow-y: auto;
+    padding-top: 80px; /* Space for lanterns */
+  }
+  .side-panel { 
+    width: 100%; 
+    max-width: 100%; 
+    flex: none; 
+    height: auto;
+    order: 2; 
+  }
+  .main-stage { 
+    width: 100%;
+    order: 1; 
+    margin: 40px 0; 
+    flex: none;
+    height: auto;
+  }
+  .container.full-width { 
+    height: auto; 
+    min-height: 100vh; 
+    overflow-y: auto; 
+    position: relative;
+  }
 }
 </style>
