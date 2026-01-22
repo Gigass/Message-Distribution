@@ -304,11 +304,18 @@ const handleLogin = async () => {
 const fetchData = async () => {
    try {
      const headers = verifiedToken.value ? { 'x-auth-token': verifiedToken.value } : {}
-     
+
+     if (!verifiedToken.value) {
+       const dRes = await fetch('/api/data', { headers })
+       const dData = await dRes.json()
+       if (dData.success) candidates.value = dData.data
+       return
+     }
+
      const [pRes, wRes, dRes] = await Promise.all([
        fetch('/api/prizes', { headers }),
        fetch('/api/lottery/winners', { headers }),
-       fetch('/api/data') // 员工数据是公开的
+       fetch('/api/data', { headers }) // 口令存在时按口令隔离
      ])
      const pData = await pRes.json()
      const wData = await wRes.json()

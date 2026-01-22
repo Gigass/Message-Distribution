@@ -51,9 +51,11 @@ _前端页面运行在 `http://localhost:5173` (Vite 会自动代理 API 请求�
 
 **访问入口**：
 
-- 前台查询：`http://localhost:5173/#/`
+- 前台查询：`http://localhost:5173/#/?code=分享码`
 - 抽奖大屏：`http://localhost:5173/#/lottery`
 - 后台管理：`http://localhost:5173/#/admin`
+
+> 查询页必须携带 `code`（分享码），否则会提示输入访问码。
 
 ### 3. 生产环境构建与预览
 
@@ -74,13 +76,18 @@ node server.js
 
 **访问入口**：
 
-- 前台查询：`http://localhost:3000/#/`
+- 前台查询：`http://localhost:3000/#/?code=分享码`
 - 抽奖大屏：`http://localhost:3000/#/lottery`
 - 后台管理：`http://localhost:3000/#/admin`
 
 ---
 
-## 📦 打包与部署
+## 🧭 部署方式对比
+
+- **本地/自建 Node**：`server.js` 提供 API + 托管 `dist`，口令从 `tokens.json` 读取，数据仅保存在内存中（不写文件）。
+- **Cloudflare Pages**：`functions/` 提供 API，数据存储在 KV（数据库），口令从 `TOKENS_JSON` 环境变量读取。
+
+## 📦 本地/自建 Node 部署
 
 本系统设计为**单体部署**，即前端打包为静态资源后，由 Node.js 后端统一提供服务。
 
@@ -124,9 +131,22 @@ node server.js
 
 5.  **访问**：
     打开浏览器访问 `http://服务器IP:3000`。
-    - 前台：`/#/`
+    - 前台：`/#/?code=分享码`
     - 抽奖：`/#/lottery`
     - 后台：`/#/admin`
+
+## ☁️ Cloudflare Pages 部署
+
+Cloudflare Pages 使用 `functions/` 作为后端，并将数据存入 KV。
+
+简要步骤：
+
+1. `npm run build`
+2. 配置 Pages Functions 与 KV 绑定（变量名 `SEAT_DATA`）
+3. 配置环境变量 `TOKENS_JSON` 或 `ADMIN_PASSWORD`
+4. 重新部署
+
+详细步骤请见 `CLOUDFLARE_DEPLOY.md`。
 
 ## ⚙️ 配置说明
 
@@ -137,13 +157,16 @@ node server.js
 ```json
 {
   "tokens": [
-    { "id": "default", "password": "MEILIN1!", "label": "默认" },
-    { "id": "xincai", "password": "jolywoodxc", "label": "新材" }
+    { "id": "default", "password": "MEILIN1!", "label": "默认", "shareCode": "bdc2f0" },
+    { "id": "xincai", "password": "jolywoodxc", "label": "新材", "shareCode": "xincai-2025" }
   ]
 }
 ```
 
 如果 `tokens.json` 不存在，会使用默认口令 `MEILIN1!`。
+
+**Cloudflare Pages 注意**：Functions 无法读取根目录文件，请在环境变量中设置 `TOKENS_JSON`（内容同上 JSON），或使用 `ADMIN_PASSWORD` 作为单口令配置。
+`shareCode` 用于查询页分享链接，不会暴露口令。
 
 ### Excel 格式要求
 
@@ -163,6 +186,13 @@ node server.js
 
 - Cloudflare Pages 部署：数据存储在 KV（数据库）中。
 - Node 本地开发：数据仅保存在内存中（不写入文件）。
+
+### 查询页分享链接（不暴露口令）
+
+使用 `shareCode` 生成查询页分享链接：
+
+- `https://your-domain/#/?code=bdc2f0`
+- `https://your-domain/#/?code=xincai-2025`
 
 ---
 

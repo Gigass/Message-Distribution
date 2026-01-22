@@ -2,7 +2,8 @@
 // POST /api/prizes/reset
 // 清空所有奖品配置 (慎用)
 
-const ADMIN_PASSWORD = 'MEILIN1!';
+import { findTokenByPassword } from '../_auth';
+import { getTokenKeys } from '../_kv';
 
 export async function onRequestPost(context) {
     const headers = {
@@ -11,9 +12,9 @@ export async function onRequestPost(context) {
         'Access-Control-Allow-Headers': 'Content-Type, x-auth-token',
     };
 
-    const password = context.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
     const token = context.request.headers.get('x-auth-token');
-    if (token !== password) {
+    const tokenConfig = findTokenByPassword(context.env, token);
+    if (!tokenConfig) {
         return new Response(JSON.stringify({ success: false, message: 'Unauthorized' }), { status: 401, headers });
     }
 
@@ -23,7 +24,8 @@ export async function onRequestPost(context) {
         }
 
         // 清空奖品列表
-        await context.env.SEAT_DATA.put('prizes', JSON.stringify([]));
+        const keys = getTokenKeys(tokenConfig.id);
+        await context.env.SEAT_DATA.put(keys.prizes, JSON.stringify([]));
 
         return new Response(JSON.stringify({ success: true, message: '奖品库已清空' }), { headers });
 

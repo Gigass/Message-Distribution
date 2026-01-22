@@ -45,6 +45,17 @@ const findTokenByPassword = (password) => {
     return TOKENS_CONFIG.find(t => t.password === password);
 };
 
+// 根据分享码查找对应的口令配置
+const findTokenByShareCode = (code) => {
+    if (!code) return null;
+    return TOKENS_CONFIG.find(t => t.shareCode === code || t.id === code);
+};
+
+const getDefaultTokenId = () => {
+    const defaultToken = TOKENS_CONFIG.find(t => t.id === 'default') || TOKENS_CONFIG[0];
+    return defaultToken ? defaultToken.id : 'default';
+};
+
 // ==========================================
 // 按口令隔离的数据缓存
 // ==========================================
@@ -194,6 +205,7 @@ const authMiddleware = (req, res, next) => {
     // 将 tokenId 附加到请求对象，供后续路由使用
     req.tokenId = tokenConfig.id;
     req.tokenLabel = tokenConfig.label || tokenConfig.id;
+    req.tokenShareCode = tokenConfig.shareCode || tokenConfig.id;
     next();
 };
 
@@ -203,15 +215,35 @@ app.post('/api/check-auth', authMiddleware, (req, res) => {
         success: true, 
         message: 'Verified',
         tokenId: req.tokenId,
-        tokenLabel: req.tokenLabel
+        tokenLabel: req.tokenLabel,
+        shareCode: req.tokenShareCode
     });
 });
 
 // API: 获取 Excel 数据 (需要认证以获取对应口令的数据)
 app.get('/api/data', (req, res) => {
-    // 公开接口，返回默认的员工数据
-    const defaultCache = getTokenCache('default');
-    res.json({ success: true, data: defaultCache.data });
+    const token = req.headers['x-auth-token'];
+    const shareCode = req.headers['x-share-code'] || req.query.code;
+    let tokenId = getDefaultTokenId();
+
+    if (token) {
+        const tokenConfig = findTokenByPassword(String(token));
+        if (!tokenConfig) {
+            return res.status(401).json({ success: false, message: '口令错误，无权操作' });
+        }
+        tokenId = tokenConfig.id;
+    } else if (shareCode) {
+        const tokenConfig = findTokenByShareCode(String(shareCode));
+        if (!tokenConfig) {
+            return res.status(401).json({ success: false, message: '访问码无效' });
+        }
+        tokenId = tokenConfig.id;
+    } else {
+        return res.status(401).json({ success: false, message: '需要访问码' });
+    }
+
+    const cache = getTokenCache(tokenId);
+    res.json({ success: true, data: cache.data });
 });
 
 // API: 下载 Excel 模板

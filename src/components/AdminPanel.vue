@@ -233,6 +233,11 @@
         <div class="qr-container">
           <img :src="qrCodeUrl" alt="App QR Code" />
         </div>
+        <div class="qr-link-row">
+          <input class="qr-link-input" :value="qrTargetUrl" readonly />
+          <button class="qr-copy-btn" @click="copyQrLink">复制链接</button>
+        </div>
+        <div v-if="copyStatus" class="qr-copy-status">{{ copyStatus }}</div>
         <p class="qr-hint">请使用手机相机扫码预览</p>
         
         <button class="modal-close" @click="closeQrModal">关闭</button>
@@ -431,6 +436,7 @@ const handleLogin = async () => {
     if (result.success) {
       isAuthenticated.value = true
       verifiedToken.value = passwordInput.value
+      shareCode.value = result.shareCode || result.tokenId || ''
       fetchPrizes() // 登录成功后获取奖品
       fetchWinners()
       fetchEmployees()
@@ -452,6 +458,7 @@ const logout = () => {
   selectedFile.value = null
   statusMessage.value = ''
   employees.value = []
+  shareCode.value = ''
 }
 
 // 文件选择逻辑
@@ -566,10 +573,20 @@ const uploadFile = async () => {
 // QR Code Logic
 const showQrModal = ref(false)
 const qrCodeUrl = ref('')
+const qrTargetUrl = ref('')
+const copyStatus = ref('')
+const shareCode = ref('')
+
+const buildQrTargetUrl = () => {
+  const baseUrl = `${window.location.origin}/#/`
+  if (!shareCode.value) return baseUrl
+  return `${baseUrl}?code=${encodeURIComponent(shareCode.value)}`
+}
 
 const generateQrCode = async () => {
   try {
-    const url = window.location.origin
+    const url = buildQrTargetUrl()
+    qrTargetUrl.value = url
     qrCodeUrl.value = await QRCode.toDataURL(url, {
       width: 300,
       margin: 2,
@@ -588,6 +605,35 @@ const generateQrCode = async () => {
 
 const closeQrModal = () => {
   showQrModal.value = false
+  copyStatus.value = ''
+}
+
+const copyQrLink = async () => {
+  if (!qrTargetUrl.value) return
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(qrTargetUrl.value)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = qrTargetUrl.value
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    copyStatus.value = '已复制到剪贴板'
+  } catch (error) {
+    copyStatus.value = '复制失败，请手动复制'
+    console.error('Copy failed', error)
+  } finally {
+    setTimeout(() => {
+      copyStatus.value = ''
+    }, 2000)
+  }
 }
 </script>
 
@@ -1129,6 +1175,39 @@ input:focus { border-color: var(--neon-green); }
   display: block;
   width: 200px; /* Force size */
   height: 200px;
+}
+.qr-link-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px;
+  margin: 10px 0 0;
+}
+.qr-link-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 2px solid black;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: #f5f5f5;
+  color: #111;
+}
+.qr-copy-btn {
+  border: 2px solid black;
+  background: black;
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.qr-copy-btn:active {
+  transform: translateY(1px);
+}
+.qr-copy-status {
+  margin-top: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #333;
 }
 
 .qr-hint {

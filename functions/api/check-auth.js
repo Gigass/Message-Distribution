@@ -1,11 +1,11 @@
 // functions/api/check-auth.js
 // Cloudflare Pages Function 处理 POST /api/check-auth
 
-const ADMIN_PASSWORD = 'MEILIN1!'; // 可通过环境变量 ADMIN_PASSWORD 覆盖
+import { findTokenByPassword } from './_auth';
 
 export async function onRequestPost(context) {
-  const password = context.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
   const token = context.request.headers.get('x-auth-token');
+  const tokenConfig = findTokenByPassword(context.env, token);
 
   const headers = {
     'Content-Type': 'application/json',
@@ -13,7 +13,7 @@ export async function onRequestPost(context) {
     'Access-Control-Allow-Headers': 'Content-Type, x-auth-token',
   };
 
-  if (token !== password) {
+  if (!tokenConfig) {
     return new Response(
       JSON.stringify({ success: false, message: '口令错误，无权操作' }),
       { status: 401, headers }
@@ -21,7 +21,13 @@ export async function onRequestPost(context) {
   }
 
   return new Response(
-    JSON.stringify({ success: true, message: 'Verified' }),
+    JSON.stringify({
+      success: true,
+      message: 'Verified',
+      tokenId: tokenConfig.id,
+      tokenLabel: tokenConfig.label,
+      shareCode: tokenConfig.shareCode || tokenConfig.id
+    }),
     { status: 200, headers }
   );
 }

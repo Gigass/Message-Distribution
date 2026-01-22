@@ -2,8 +2,51 @@ import { serveDir } from "https://deno.land/std@0.208.0/http/file_server.ts";
 import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs";
 
 const ADMIN_PASSWORD = Deno.env.get("ADMIN_PASSWORD") || "MEILIN1!";
+const DEFAULT_TOKENS = [{ id: "default", password: "MEILIN1!", label: "默认" }];
 let CACHE_DATA: any[] = [];
 const TEMPLATE_PATHS = ["public/info.xlsx", "info.xlsx", "dist/info.xlsx"];
+
+function normalizeTokens(tokens: any[]) {
+  return tokens
+    .map((token, index) => {
+      const id = token && token.id ? String(token.id) : `token_${index + 1}`;
+      const password = token && token.password ? String(token.password) : "";
+      const label = token && token.label ? String(token.label) : id;
+      return { id, password, label };
+    })
+    .filter((token) => token.password);
+}
+
+function getTokensFromEnv() {
+  const tokensJson = Deno.env.get("TOKENS_JSON");
+  if (tokensJson) {
+    try {
+      const parsed = JSON.parse(tokensJson);
+      if (Array.isArray(parsed)) {
+        const tokens = normalizeTokens(parsed);
+        if (tokens.length) return tokens;
+      }
+      if (parsed && Array.isArray(parsed.tokens)) {
+        const tokens = normalizeTokens(parsed.tokens);
+        if (tokens.length) return tokens;
+      }
+    } catch (error) {
+      console.warn("[Auth] Failed to parse TOKENS_JSON:", error.message);
+    }
+  }
+
+  if (ADMIN_PASSWORD) {
+    return [{ id: "default", password: ADMIN_PASSWORD, label: "默认" }];
+  }
+
+  return DEFAULT_TOKENS;
+}
+
+function findTokenByPassword(password: string | null) {
+  if (!password) return null;
+  const tokens = getTokensFromEnv();
+  return tokens.find((token) => token.password === password) || null;
+}
 
 // 工具函数：解析 Excel Buffer 并格式化数据
 function parseExcelBuffer(buffer: Uint8Array) {
@@ -75,7 +118,7 @@ function corsHeaders(): Record<string, string> {
 // 验证口令
 function checkAuth(req: Request): boolean {
   const token = req.headers.get("x-auth-token");
-  return token === ADMIN_PASSWORD;
+  return Boolean(findTokenByPassword(token));
 }
 
 // 处理请求

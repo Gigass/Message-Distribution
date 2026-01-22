@@ -2,7 +2,8 @@
 // Cloudflare Pages Function 处理 POST /api/upload
 // 接收前端解析好的 JSON 数据，存储到 Cloudflare KV
 
-const ADMIN_PASSWORD = 'MEILIN1!';
+import { findTokenByPassword } from './_auth';
+import { getTokenKeys } from './_kv';
 
 export async function onRequestPost(context) {
   const headers = {
@@ -12,10 +13,10 @@ export async function onRequestPost(context) {
   };
 
   // 验证口令
-  const password = context.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
   const token = context.request.headers.get('x-auth-token');
 
-  if (token !== password) {
+  const tokenConfig = findTokenByPassword(context.env, token);
+  if (!tokenConfig) {
     return new Response(
       JSON.stringify({ success: false, message: '口令错误，无权操作' }),
       { status: 401, headers }
@@ -50,7 +51,8 @@ export async function onRequestPost(context) {
 
     // 保存到 KV 存储
     if (context.env.SEAT_DATA) {
-      await context.env.SEAT_DATA.put('seat_data', JSON.stringify(data));
+      const keys = getTokenKeys(tokenConfig.id);
+      await context.env.SEAT_DATA.put(keys.seatData, JSON.stringify(data));
       console.log(`[Upload] 数据已保存到 KV: ${data.length} 条记录`);
     } else {
       // 如果没有配置 KV，使用全局变量（仅在当前请求实例有效，重启后丢失）

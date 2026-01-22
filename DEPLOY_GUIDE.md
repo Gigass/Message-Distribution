@@ -83,7 +83,8 @@
    - **入口文件**：`main.ts`
    - **构建命令**：`npm run build`（先构建前端）
    - **环境变量**：
-     - `ADMIN_PASSWORD=你的密码`
+     - `ADMIN_PASSWORD=你的密码`（单口令）
+     - `TOKENS_JSON={"tokens":[{"id":"default","password":"MEILIN1!","label":"默认","shareCode":"bdc2f0"}]}`（多口令 + 查询页分享码）
 
 4. **优点**：
    - ✅ 保持 History 路由（URL 更美观）

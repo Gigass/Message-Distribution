@@ -1,7 +1,8 @@
 // functions/api/lottery/invalidate.js
 // POST /api/lottery/invalidate
 
-const ADMIN_PASSWORD = 'MEILIN1!';
+import { findTokenByPassword } from '../_auth';
+import { getTokenKeys } from '../_kv';
 
 export async function onRequestPost(context) {
     const headers = {
@@ -10,9 +11,9 @@ export async function onRequestPost(context) {
         'Access-Control-Allow-Headers': 'Content-Type, x-auth-token',
     };
 
-    const password = context.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
     const token = context.request.headers.get('x-auth-token');
-    if (token !== password) {
+    const tokenConfig = findTokenByPassword(context.env, token);
+    if (!tokenConfig) {
         return new Response(JSON.stringify({ success: false, message: 'Unauthorized' }), { status: 401, headers });
     }
 
@@ -23,10 +24,11 @@ export async function onRequestPost(context) {
 
         const { id } = await context.request.json();
         
+        const keys = getTokenKeys(tokenConfig.id);
         let [winners, prizes, excludedIdsRaw] = await Promise.all([
-            context.env.SEAT_DATA.get('winners', 'json').then(r => r || []),
-            context.env.SEAT_DATA.get('prizes', 'json').then(r => r || []),
-            context.env.SEAT_DATA.get('excludedIds', 'json').then(r => r || [])
+            context.env.SEAT_DATA.get(keys.winners, 'json').then(r => r || []),
+            context.env.SEAT_DATA.get(keys.prizes, 'json').then(r => r || []),
+            context.env.SEAT_DATA.get(keys.excludedIds, 'json').then(r => r || [])
         ]);
 
         const winnerIndex = winners.findIndex(w => w.id === id);
@@ -51,9 +53,9 @@ export async function onRequestPost(context) {
 
         // Save
         await Promise.all([
-            context.env.SEAT_DATA.put('winners', JSON.stringify(winners)),
-            context.env.SEAT_DATA.put('prizes', JSON.stringify(prizes)),
-            context.env.SEAT_DATA.put('excludedIds', JSON.stringify(Array.from(excludedIds)))
+            context.env.SEAT_DATA.put(keys.winners, JSON.stringify(winners)),
+            context.env.SEAT_DATA.put(keys.prizes, JSON.stringify(prizes)),
+            context.env.SEAT_DATA.put(keys.excludedIds, JSON.stringify(Array.from(excludedIds)))
         ]);
 
         return new Response(JSON.stringify({ success: true, message: 'Record invalidated, stock restored' }), { headers });

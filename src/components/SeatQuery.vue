@@ -16,6 +16,21 @@
       <div class="lantern-tassel"></div>
     </div>
     
+    <!-- 访问码遮罩 -->
+    <div v-if="accessGateVisible" class="access-overlay">
+      <div class="access-box">
+        <h2>请输入访问码</h2>
+        <input
+          v-model="accessCodeInput"
+          type="text"
+          placeholder="访问码"
+          @keypress.enter="submitAccessCode"
+        >
+        <button class="access-btn" @click="submitAccessCode">进入查询</button>
+        <div v-if="accessError" class="access-error">{{ accessError }}</div>
+      </div>
+    </div>
+
     <!-- 主卡片：红包/卷轴风格 -->
     <div class="card red-packet">
       <div class="card-header">
@@ -44,6 +59,11 @@
       <div class="hint-tag">
         <span>例如: 李总 / DT001 / 张工</span>
       </div>
+
+      <div v-if="accessCode" class="token-tag">
+        <span>已绑定访问码</span>
+        <button class="token-clear" @click="clearCode">清除</button>
+      </div>
     </div>
 
     <!-- 结果弹窗 -->
@@ -66,7 +86,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 const searchQuery = ref('')
 const employeeData = ref([])
@@ -74,20 +95,115 @@ const showModal = ref(false)
 const modalTitle = ref('')
 const modalContent = ref('')
 const modalType = ref('success')
+const accessCode = ref('')
+const dataError = ref('')
+const accessCodeInput = ref('')
+const accessGateVisible = ref(false)
+const accessError = ref('')
+
+const CODE_STORAGE_KEY = 'seat_query_code'
+const LEGACY_TOKEN_STORAGE_KEY = 'seat_query_token'
+const route = useRoute()
+
+const resolveCodeFromRoute = () => {
+  const codeParam = route.query.code || route.query.token
+  if (typeof codeParam === 'string' && codeParam.trim()) {
+    return codeParam.trim()
+  }
+  return ''
+}
+
+const syncAccessCode = () => {
+  const codeFromRoute = resolveCodeFromRoute()
+  if (codeFromRoute) {
+    accessCode.value = codeFromRoute
+    localStorage.setItem(CODE_STORAGE_KEY, codeFromRoute)
+    localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY)
+    accessCodeInput.value = codeFromRoute
+    return
+  }
+
+  const stored = localStorage.getItem(CODE_STORAGE_KEY)
+  accessCode.value = stored || ''
+  accessCodeInput.value = accessCode.value
+}
+
+const loadData = async () => {
+  dataError.value = ''
+  try {
+    if (!accessCode.value) {
+      accessGateVisible.value = true
+      employeeData.value = []
+      return false
+    }
+
+    const headers = accessCode.value ? { 'x-share-code': accessCode.value } : {}
+    const response = await fetch('/api/data', { headers })
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      dataError.value = result.message || '数据加载失败'
+      employeeData.value = []
+      accessGateVisible.value = true
+      accessError.value = result.message || '访问码无效'
+      return
+    }
+    employeeData.value = result.data
+    accessGateVisible.value = false
+    accessError.value = ''
+    return true
+  } catch (error) {
+    dataError.value = '数据加载失败'
+    console.error('Failed to load data', error)
+    accessGateVisible.value = true
+    accessError.value = '数据加载失败'
+    return false
+  }
+}
+
+const clearCode = async () => {
+  accessCode.value = ''
+  localStorage.removeItem(CODE_STORAGE_KEY)
+  localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY)
+  accessCodeInput.value = ''
+  await loadData()
+}
+
+const submitAccessCode = async () => {
+  const input = accessCodeInput.value.trim()
+  if (!input) {
+    accessError.value = '请输入访问码'
+    accessGateVisible.value = true
+    return
+  }
+
+  accessCode.value = input
+  localStorage.setItem(CODE_STORAGE_KEY, input)
+  accessError.value = ''
+  await loadData()
+}
 
 onMounted(async () => {
-  try {
-    const response = await fetch('/api/data')
-    const result = await response.json()
-    if (result.success) {
-      employeeData.value = result.data
-    }
-  } catch (error) {
-    console.error('Failed to load data', error)
-  }
+  syncAccessCode()
+  await loadData()
 })
 
+watch(
+  () => route.fullPath,
+  async () => {
+    syncAccessCode()
+    await loadData()
+  }
+)
+
 const searchSeat = () => {
+  if (dataError.value) {
+    showResult(false, '加载失败', `<div class="msg-text">${dataError.value}</div>`)
+    return
+  }
+  if (accessGateVisible.value) {
+    showResult(false, '需要访问码', '<div class="msg-text">请先输入访问码</div>')
+    return
+  }
   const input = searchQuery.value.trim()
   if (!input) {
     showResult(false, '请输入查询内容', '<div class="msg-text">这里是空的！<br>请输入姓名或工号</div>')
@@ -338,6 +454,82 @@ input::placeholder {
   margin-top: 30px;
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
+}
+
+.access-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 5, 5, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  backdrop-filter: blur(4px);
+}
+.access-box {
+  background: var(--cny-cream);
+  border: 6px solid var(--cny-red);
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+}
+.access-box h2 {
+  margin-bottom: 12px;
+  color: var(--cny-red);
+}
+.access-box input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 3px solid black;
+  border-radius: 10px;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.access-btn {
+  background: var(--cny-gold);
+  color: black;
+  font-weight: 900;
+  border: 3px solid black;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  width: 100%;
+}
+.access-btn:active {
+  transform: translateY(2px);
+}
+.access-error {
+  margin-top: 10px;
+  color: #b00020;
+  font-weight: 700;
+}
+.token-tag {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid var(--cny-gold);
+  color: var(--cny-gold);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.token-clear {
+  background: var(--cny-gold);
+  border: 1px solid black;
+  color: black;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.token-clear:active {
+  transform: translateY(1px);
 }
 
 /* 弹窗样式 */

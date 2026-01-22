@@ -1,7 +1,8 @@
 // functions/api/prizes/[id].js
 // 处理 DELETE /api/prizes/:id
 
-const ADMIN_PASSWORD = 'MEILIN1!';
+import { findTokenByPassword } from '../_auth';
+import { getTokenKeys } from '../_kv';
 
 export async function onRequestDelete(context) {
     const headers = {
@@ -10,9 +11,9 @@ export async function onRequestDelete(context) {
         'Access-Control-Allow-Headers': 'Content-Type, x-auth-token',
     };
 
-    const password = context.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
     const token = context.request.headers.get('x-auth-token');
-    if (token !== password) {
+    const tokenConfig = findTokenByPassword(context.env, token);
+    if (!tokenConfig) {
         return new Response(JSON.stringify({ success: false, message: 'Unauthorized' }), { status: 401, headers });
     }
 
@@ -20,9 +21,10 @@ export async function onRequestDelete(context) {
         const id = context.params.id;
         
         if (context.env.SEAT_DATA) {
-            let prizes = await context.env.SEAT_DATA.get('prizes', 'json') || [];
+            const keys = getTokenKeys(tokenConfig.id);
+            let prizes = await context.env.SEAT_DATA.get(keys.prizes, 'json') || [];
             prizes = prizes.filter(p => p.id !== id);
-            await context.env.SEAT_DATA.put('prizes', JSON.stringify(prizes));
+            await context.env.SEAT_DATA.put(keys.prizes, JSON.stringify(prizes));
         }
 
         return new Response(JSON.stringify({ success: true }), { headers });

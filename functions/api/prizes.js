@@ -3,18 +3,27 @@
 // GET: 获取奖品列表
 // POST: 添加/更新奖品
 
-const ADMIN_PASSWORD = 'MEILIN1!';
+import { findTokenByPassword } from './_auth';
+import { getTokenKeys } from './_kv';
 
 export async function onRequestGet(context) {
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, x-auth-token',
     };
 
     try {
+        const token = context.request.headers.get('x-auth-token');
+        const tokenConfig = findTokenByPassword(context.env, token);
+        if (!tokenConfig) {
+            return new Response(JSON.stringify({ success: false, message: 'Unauthorized' }), { status: 401, headers });
+        }
+
         let prizes = [];
         if (context.env.SEAT_DATA) {
-            const data = await context.env.SEAT_DATA.get('prizes', 'json');
+            const keys = getTokenKeys(tokenConfig.id);
+            const data = await context.env.SEAT_DATA.get(keys.prizes, 'json');
             if (data) prizes = data;
         }
 
@@ -32,9 +41,9 @@ export async function onRequestPost(context) {
     };
 
     // Auth
-    const password = context.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
     const token = context.request.headers.get('x-auth-token');
-    if (token !== password) {
+    const tokenConfig = findTokenByPassword(context.env, token);
+    if (!tokenConfig) {
         return new Response(JSON.stringify({ success: false, message: 'Unauthorized' }), { status: 401, headers });
     }
 
@@ -49,7 +58,8 @@ export async function onRequestPost(context) {
         // Get current prizes
         let prizes = [];
         if (context.env.SEAT_DATA) {
-            const data = await context.env.SEAT_DATA.get('prizes', 'json');
+            const keys = getTokenKeys(tokenConfig.id);
+            const data = await context.env.SEAT_DATA.get(keys.prizes, 'json');
             if (data) prizes = data;
         }
 
@@ -73,7 +83,8 @@ export async function onRequestPost(context) {
         }
 
         if (context.env.SEAT_DATA) {
-            await context.env.SEAT_DATA.put('prizes', JSON.stringify(prizes));
+            const keys = getTokenKeys(tokenConfig.id);
+            await context.env.SEAT_DATA.put(keys.prizes, JSON.stringify(prizes));
         }
 
         return new Response(JSON.stringify({ success: true, data: newPrize }), { headers });

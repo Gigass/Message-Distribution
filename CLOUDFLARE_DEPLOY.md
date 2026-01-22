@@ -39,12 +39,20 @@ npm run build
 
 ### 步骤 4: 配置环境变量（可选）
 
-如需修改管理员密码：
+如需修改管理员口令（单口令）：
 
 1. 进入项目 **Settings** > **Environment variables**
 2. 添加变量：
    - **Variable name**: `ADMIN_PASSWORD`
    - **Value**: 你的密码
+3. 点击 **Save**
+
+如需多口令配置：
+
+1. 进入项目 **Settings** > **Environment variables**
+2. 添加变量：
+   - **Variable name**: `TOKENS_JSON`
+   - **Value**: `{"tokens":[{"id":"default","password":"MEILIN1!","label":"默认","shareCode":"bdc2f0"},{"id":"xincai","password":"jolywoodxc","label":"新材","shareCode":"xincai-2025"}]}`
 3. 点击 **Save**
 
 ## 📁 项目结构
