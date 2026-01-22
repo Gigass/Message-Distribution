@@ -1,5 +1,6 @@
 <template>
-  <div class="container">
+  <div class="admin-page">
+    <div class="container">
     <!-- 装饰元素 -->
     <div class="graffiti-decoration triangle-decoration"></div>
     <div class="graffiti-decoration lines-decoration"></div>
@@ -236,6 +237,7 @@
         
         <button class="modal-close" @click="closeQrModal">关闭</button>
       </div>
+    </div>
     </div>
   </div>
 </template>
@@ -593,8 +595,29 @@ const closeQrModal = () => {
 .container {
   position: relative;
   width: 100%;
-  max-width: 500px;
+  max-width: 1200px;
   padding: 20px;
+}
+.admin-page {
+  width: 100%;
+  min-height: 100vh;
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 20px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.admin-card {
+  width: 100%;
 }
 
 /* 装饰 */
@@ -1134,6 +1157,10 @@ input:focus { border-color: var(--neon-green); }
 
 /* Mobile Responsive */
 @media (max-width: 600px) {
+  .admin-page {
+    padding: 20px 10px;
+  }
+
   .container {
     padding: 10px;
   }
