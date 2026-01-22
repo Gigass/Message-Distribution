@@ -19,6 +19,12 @@ const DATA_FILE = 'lottery-data.json';
 // 启用 CORS 和 JSON 解析
 app.use(cors());
 app.use(express.json());
+// Logging Middleware
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
+
 // 生产环境托管 Vue 构建产物 (dist)
 app.use(express.static(path.resolve(process.cwd(), 'dist')));
 
