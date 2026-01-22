@@ -85,41 +85,43 @@
 
       <!-- 中间：抽奖舞台 -->
       <div class="main-stage">
-        <div class="title-area">
-          <div class="year-tag">2026 Horse Year</div>
-          <h1>幸运大抽奖</h1>
-        </div>
+        <div class="panel-card center-panel">
+          <div class="title-area">
+            <div class="year-tag">2026 Horse Year</div>
+            <h1>幸运大抽奖</h1>
+          </div>
 
-        <!-- 滚动显示区域 -->
-        <div class="rolling-display">
-          <div class="rolling-content" :class="{ 'is-rolling': isRolling }">
-            <div v-if="!currentResult && !isRolling" class="placeholder">
-              {{ selectedPrize ? `准备抽取: ${selectedPrize.name}` : '谁是下一个幸运儿？' }}
-            </div>
-            <div v-else-if="isRolling" class="rolling-text">
-              {{ rollingName }}
-            </div>
-            <div v-else class="result-display">
-              <div v-for="winner in currentResult" :key="winner.id" class="winner-card-new">
-                 <div class="winner-avatar">{{ winner.winnerName[0] }}</div>
-                 <div class="winner-info">
-                   <div class="w-name">{{ winner.winnerName }}</div>
-                   <div class="w-id">{{ winner.winnerId }} | 桌号: {{ winner.winnerSeat }}</div>
-                 </div>
+          <!-- 滚动显示区域 -->
+          <div class="rolling-display">
+            <div class="rolling-content" :class="{ 'is-rolling': isRolling }">
+              <div v-if="!currentResult && !isRolling" class="placeholder">
+                {{ selectedPrize ? `准备抽取: ${selectedPrize.name}` : '谁是下一个幸运儿？' }}
+              </div>
+              <div v-else-if="isRolling" class="rolling-text">
+                {{ rollingName }}
+              </div>
+              <div v-else class="result-display">
+                <div v-for="winner in currentResult" :key="winner.id" class="winner-card-new">
+                   <div class="winner-avatar">{{ winner.winnerName[0] }}</div>
+                   <div class="winner-info">
+                     <div class="w-name">{{ winner.winnerName }}</div>
+                     <div class="w-id">{{ winner.winnerId }} | 桌号: {{ winner.winnerSeat }}</div>
+                   </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <button 
-          class="draw-btn" 
-          :disabled="isRolling || activePrizes.length === 0"
-          @click="startDraw"
-        >
-          <div class="btn-inner">
-            {{ isRolling ? '抽奖中...' : '开始抽奖' }}
-          </div>
-        </button>
+          <button 
+            class="draw-btn" 
+            :disabled="isRolling || activePrizes.length === 0"
+            @click="startDraw"
+          >
+            <div class="btn-inner">
+              {{ isRolling ? '抽奖中...' : '开始抽奖' }}
+            </div>
+          </button>
+        </div>
       </div>
 
       <!-- 右侧：中奖名单 -->
@@ -430,13 +432,17 @@ const fireFireworks = () => {
 .side-panel.right { order: 3; }
 
 .main-stage {
-  order: 2;
+  order: 2; /* Center in flex/grid */
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   height: 100%;
   min-width: 0;
+  margin: 0 20px; /* Add margin for better separation */
+}
+.panel-card.center-panel {
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 253, 240, 0.85); /* Slightly transparent to show some texture, or opaque */
 }
 
 /* 
@@ -461,8 +467,19 @@ const fireFireworks = () => {
   top: 4px; left: 4px;
   right: 4px; bottom: 4px;
   border: 2px dashed rgba(0,0,0,0.1);
+  border: 2px dashed rgba(0,0,0,0.1);
   border-radius: 8px;
   pointer-events: none;
+}
+
+/* Distinct Panel Colors */
+.glass-red {
+  background: #FFF0F0; /* Light Red tint */
+  border-color: var(--cny-red);
+}
+.glass-gold {
+  background: #FFFFF0; /* Light Gold/Yellow tint */
+  border-color: #B8860B;
 }
 
 h2 {
@@ -479,7 +496,7 @@ h2 {
   display: inline-block;
   align-self: center;
   box-shadow: 3px 3px 0px black;
-  transform: rotate(-1deg);
+  box-shadow: 3px 3px 0px black;
 }
 
 /* Lanterns (Restored & Pop-ified) */
@@ -582,7 +599,14 @@ h2 {
 }
 
 /* Main Stage */
-.title-area { text-align: center; margin-bottom: 30px; position: relative; }
+.title-area { 
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 30px; 
+  position: relative; 
+}
 .year-tag {
   display: inline-block; background: black; color: var(--cny-gold);
   padding: 6px 20px; border-radius: 50px; font-weight: 900; font-size: 16px; margin-bottom: 10px;
@@ -602,7 +626,6 @@ h2 {
   box-shadow: 10px 10px 0px black;
   letter-spacing: 5px;
   font-family: 'Ma Shan Zheng', cursive, serif;
-  transform: rotate(-2deg);
 }
 
 .rolling-display {
@@ -699,9 +722,9 @@ h2 {
   animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 @keyframes bounce-in {
-  0% { transform: scale(0.3) rotate(-5deg); opacity: 0; }
-  50% { transform: scale(1.05) rotate(2deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0deg); }
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); }
 }
 
 .result-modal h2 {
@@ -712,7 +735,7 @@ h2 {
 }
 .modal-prize-name {
   font-size: 32px; background: var(--cny-gold); border: 4px solid black;
-  display: inline-block; padding: 10px 30px; transform: rotate(-2deg);
+  display: inline-block; padding: 10px 30px;
   box-shadow: 6px 6px 0px black; margin-bottom: 40px; color: var(--cny-red); border-radius: 10px;
 }
 
@@ -765,7 +788,7 @@ h2 {
 }
 .auth-box h2 {
   background: var(--cny-red); color: white; border: 3px solid black;
-  transform: rotate(2deg); width: 100%; border-radius: 10px; box-shadow: 4px 4px 0px black;
+  width: 100%; border-radius: 10px; box-shadow: 4px 4px 0px black;
   margin-top: 0;
   box-sizing: border-box;
 }
