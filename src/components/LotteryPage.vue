@@ -17,21 +17,10 @@
        </div>
     </div>
 
-    <!-- 背景装饰 -->
-    <!-- 背景装饰 - 国潮波普灯笼 -->
-    <div class="decoration lantern-left">
-      <div class="lantern-string"></div>
-      <div class="lantern-body"><div class="lantern-text">春</div></div>
-      <div class="lantern-tassel"></div>
-    </div>
-    <div class="decoration lantern-right">
-      <div class="lantern-string"></div>
-      <div class="lantern-body"><div class="lantern-text">福</div></div>
-      <div class="lantern-tassel"></div>
-    </div>
+    <!-- Background Decoration Removed (Moved to Main Stage) -->
 
     <!-- 粒子特效容器 -->
-    <canvas ref="fireworksCanvas" class="fireworks-canvas"></canvas>
+    <!-- 粒子特效容器: Removed -->
 
     <!-- 主布局 -->
     <div class="lottery-layout">
@@ -85,42 +74,84 @@
 
       <!-- 中间：抽奖舞台 -->
       <div class="main-stage">
-        <div class="panel-card center-panel">
-          <div class="title-area">
-            <div class="year-tag">2026 Horse Year</div>
-            <h1>幸运大抽奖</h1>
+        <div class="title-section">
+          <div class="decoration lantern-inline">
+             <div class="lantern-string"></div>
+             <div class="lantern-body"><div class="lantern-text">春</div></div>
+             <div class="lantern-tassel"></div>
           </div>
+          <div class="main-title">幸运大抽奖</div>
+          <div class="decoration lantern-inline">
+             <div class="lantern-string"></div>
+             <div class="lantern-body"><div class="lantern-text">福</div></div>
+             <div class="lantern-tassel"></div>
+          </div>
+        </div>
+        <div class="slot-machine-wrapper">
+          <!-- The Machine Body -->
+          <div class="slot-machine-body">
+            
+            <!-- Machine Header/Logo -->
+            <div class="machine-header-plate">
+              <div class="jackpot-light left"></div>
+              <div class="machine-title">
+                 <span class="title-text">LUCKY • SLOT</span>
+              </div>
+              <div class="jackpot-light right"></div>
+            </div>
 
-          <!-- 滚动显示区域 -->
-          <div class="rolling-display">
-            <div class="rolling-content" :class="{ 'is-rolling': isRolling }">
-              <div v-if="!currentResult && !isRolling" class="placeholder">
-                {{ selectedPrize ? `准备抽取: ${selectedPrize.name}` : '谁是下一个幸运儿？' }}
-              </div>
-              <div v-else-if="isRolling" class="rolling-text">
-                {{ rollingName }}
-              </div>
-              <div v-else class="result-display">
-                <div v-for="winner in currentResult" :key="winner.id" class="winner-card-new">
-                   <div class="winner-avatar">{{ winner.winnerName[0] }}</div>
-                   <div class="winner-info">
-                     <div class="w-name">{{ winner.winnerName }}</div>
-                     <div class="w-id">{{ winner.winnerId }} | 桌号: {{ winner.winnerSeat }}</div>
-                   </div>
+            <!-- The Main Display Window -->
+            <div class="machine-display-frame">
+              <div class="glass-reflection"></div>
+              <div class="rolling-display">
+                <div class="rolling-content" :class="{ 'is-rolling': isRolling }">
+                  <div v-if="!currentResult && !isRolling" class="placeholder">
+                    {{ selectedPrize ? `准备抽取: ${selectedPrize.name}` : 'PULL TO WIN' }}
+                  </div>
+                  <div v-else-if="isRolling" class="rolling-text blur-effect">
+                    {{ rollingName }}
+                  </div>
+                  <div v-else class="result-display">
+                    <div v-for="winner in currentResult" :key="winner.id" class="winner-card-slot">
+                       <div class="winner-avatar">{{ winner.winnerName[0] }}</div>
+                       <div class="winner-info">
+                         <div class="w-name">{{ winner.winnerName }}</div>
+                         <div class="w-id">Seat: {{ winner.winnerSeat }}</div>
+                       </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <!-- Machine Controls Panel -->
+            <div class="machine-controls-plate">
+               <div class="coin-slot">INSERT COIN</div>
+               <button 
+                 class="spin-button"
+                 :disabled="isRolling || isLeverPulled || activePrizes.length === 0"
+                 @click="triggerLeverAction"
+               >
+                 开始
+               </button>
+               <div class="status-lights">
+                 <div class="light" :class="{ on: !isRolling }">READY</div>
+                 <div class="light" :class="{ on: isRolling }">RUN</div>
+               </div>
+            </div>
           </div>
 
-          <button 
-            class="draw-btn" 
-            :disabled="isRolling || activePrizes.length === 0"
-            @click="startDraw"
-          >
-            <div class="btn-inner">
-              {{ isRolling ? '抽奖中...' : '开始抽奖' }}
-            </div>
-          </button>
+          <!-- The Interactive Lever -->
+          <div class="lever-group">
+             <div class="lever-base"></div>
+             <div class="lever-shaft" :class="{ 'pulled': isLeverPulled }"></div>
+             <div 
+               class="lever-handle" 
+               :class="{ 'pulled': isLeverPulled }"
+               @click="triggerLeverAction"
+             >
+             </div>
+          </div>
         </div>
       </div>
 
@@ -192,6 +223,7 @@ const selectedPrizeId = ref(null)
 const drawCount = ref(1)
 const currentResult = ref(null)
 const showResultModal = ref(false)
+const isLeverPulled = ref(false) // New state for lever animation
 
 // Auth
 const isAuthenticated = ref(false)
@@ -288,16 +320,36 @@ const getLevelIcon = (level) => {
   return map[level] || '🎁'
 }
 
-// Draw Logic with Deceleration
-const startDraw = async () => {
-   if (isRolling.value) return
+// Lever Action
+const triggerLeverAction = async () => {
+   if (isRolling.value || isLeverPulled.value || activePrizes.value.length === 0) return
    
-   // Pre-validation
-   if (selectedPrize.value && selectedPrize.value.remaining < drawCount.value) {
+   // 1. Validate
+    if (selectedPrize.value && selectedPrize.value.remaining < drawCount.value) {
      alert(`该奖品仅剩 ${selectedPrize.value.remaining} 个，无法抽取 ${drawCount.value} 人`)
      drawCount.value = selectedPrize.value.remaining
      return
    }
+
+   // 2. Animate Lever
+   isLeverPulled.value = true
+   
+   // 3. Wait for lever "down" animation to hit bottom then trigger start
+   setTimeout(() => {
+     startDraw()
+     
+     // Reset lever after spring back
+     setTimeout(() => {
+        isLeverPulled.value = false
+     }, 500)
+   }, 300)
+}
+
+// Draw Logic with Deceleration
+const startDraw = async () => {
+   // Already checked validation in triggerLeverAction, but double check if called directly
+   if (isRolling.value) return
+
 
    // 1. Start Fast Rolling (Phase 1)
    isRolling.value = true
@@ -534,24 +586,28 @@ h2 {
   box-shadow: 3px 3px 0px black;
 }
 
-/* Lanterns (Restored & Pop-ified) - 叠加显示不占空间 */
+/* Lanterns (Restored & Pop-ified) - Inline Version */
+.title-section {
+  display: flex;
+  align-items: center; /* Align vertically center with title */
+  justify-content: center;
+  gap: 30px;
+  width: 100%;
+}
 .decoration {
-  position: fixed;
-  top: 20px;
-  z-index: 100;
+  /* Removed fixed positioning */
   display: flex;
   flex-direction: column;
   align-items: center;
   animation: swing 3s ease-in-out infinite alternate;
-  pointer-events: none;
+  margin-top: -30px; /* Adjust vertical alignment if needed */
 }
-.lantern-left { left: 60px; }
-.lantern-right { right: 60px; }
+
 @keyframes swing {
   0% { transform: rotate(5deg); }
   100% { transform: rotate(-5deg); }
 }
-.lantern-string { width: 4px; height: 60px; background: black; }
+.lantern-string { width: 4px; height: 40px; background: black; }
 .lantern-body {
   width: 90px; height: 80px;
   background: var(--cny-red);
@@ -633,100 +689,231 @@ h2 {
   color: black; padding: 5px; font-weight: 900; border-radius: 6px; margin: 0 5px;
 }
 
-/* Main Stage */
-.title-area { 
+/* Main Stage & Slot Machine */
+.main-stage {
+  order: 2;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  margin-bottom: 10px; 
-  position: relative; 
-}
-.year-tag {
-  display: inline-block; background: black; color: var(--cny-gold);
-  padding: 4px 16px; border-radius: 50px; font-weight: 900; font-size: 14px; margin-bottom: 6px;
-  border: 2px solid var(--cny-gold);
-}
-.title-area h1 {
-  display: inline-block;
-  font-size: 60px; 
-  color: var(--cny-red); 
-  background: var(--cny-gold);
-  margin: 0;
-  padding: 4px 30px;
-  border: 4px solid black;
-  border-radius: 60px;
-  font-weight: 900;
-  text-shadow: none;
-  box-shadow: 8px 8px 0px black;
-  letter-spacing: 4px;
-  font-family: 'Ma Shan Zheng', cursive, serif;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  margin: 0 20px;
 }
 
-.rolling-display {
-  width: 100%;
-  max-width: 800px;
-  height: 450px;
-  background: var(--pop-white);
-  border: 6px solid black;
-  border-radius: 20px;
-  box-shadow: 12px 12px 0px var(--cny-red);
+.main-title {
+  font-family: 'Ma Shan Zheng', cursive, serif;
+  font-size: 100px;
+  font-weight: 900;
+  color: var(--cny-gold);
+  background-color: var(--cny-red);
+  padding: 10px 50px;
+  border-radius: 100px;
+  border: 4px solid black;
+  box-shadow: 8px 8px 0px black;
+  text-shadow: 4px 4px 0px black;
+  margin-bottom: 40px;
+  letter-spacing: 8px;
+  z-index: 20;
+  -webkit-text-stroke: 2px black;
+}
+
+.slot-machine-wrapper {
+  position: relative;
   display: flex;
-  justify-content: center;
+  align-items: flex-end; /* Align lever bottom with machine */
+}
+
+/* Machine Body - Metallic & 3D */
+.slot-machine-body {
+  width: 600px;
+  background: linear-gradient(to right, #444 0%, #888 20%, #bbb 50%, #888 80%, #444 100%);
+  border-radius: 40px 40px 10px 10px;
+  padding: 30px;
+  box-shadow: 
+    inset 0 0 20px rgba(0,0,0,0.8),
+    10px 20px 30px rgba(0,0,0,0.5);
+  border: 4px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+}
+/* Side Panels/Lighting Effect */
+.slot-machine-body::before {
+  content: ''; position: absolute; top: 10px; left: 10px; bottom: 10px; right: 10px;
+  border: 2px solid rgba(255,255,255,0.2); border-radius: 30px 30px 5px 5px; pointer-events: none;
+}
+
+/* Header Plate */
+.machine-header-plate {
+  background: #222;
+  border-radius: 50px;
+  padding: 10px;
+  display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  border: 2px solid #666;
+  box-shadow: inset 0 5px 10px black;
+}
+.machine-title {
+  color: gold; 
+  font-family: 'Times New Roman', serif;
+  font-weight: 900;
+  font-size: 32px;
+  letter-spacing: 5px;
+  text-shadow: 0 0 10px orange, 2px 2px 0px black;
+  background: linear-gradient(180deg, #ffd700, #ff8c00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.jackpot-light {
+  width: 20px; height: 20px; background: red;
+  border-radius: 50%;
+  box-shadow: 0 0 10px red;
+  animation: blink 1s infinite alternate;
+}
+@keyframes blink { from { opacity: 0.3; } to { opacity: 1; }}
+
+/* Display Window */
+.machine-display-frame {
+  background: #000;
+  padding: 15px;
+  border-radius: 10px;
+  border: 5px solid #666;
+  box-shadow: inset 0 0 20px black;
   position: relative;
   overflow: hidden;
 }
-
-.placeholder { 
-  color: var(--cny-red); font-size: 32px; font-weight: bold; 
+.glass-reflection {
+  position: absolute; top: 0; left: 0; width: 100%; height: 40%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+  z-index: 5; pointer-events: none;
 }
+.rolling-display {
+  width: 100%;
+  height: 250px;
+  background: white;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  /* Slot reel effect */
+  background: 
+    linear-gradient(to bottom, #dcdcdc 0%, #fff 50%, #dcdcdc 100%);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+}
+
 .rolling-text { 
-  font-size: 90px; font-weight: 900; color: black; 
-  text-shadow: 4px 4px 0px var(--pop-cyan); 
+  font-size: 60px; font-weight: 900; color: #333; 
+  font-family: 'Courier New', monospace;
 }
-.result-display { 
-  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 25px; width: 100%; padding: 30px; overflow-y: auto; max-height: 100%; 
+.rolling-text.blur-effect {
+  filter: blur(2px);
+  transform: scaleY(1.1);
 }
-.winner-card-new {
-  background: white; border: 4px solid black; padding: 18px 24px; box-shadow: 6px 6px 0px rgba(0,0,0,0.3);
-  border-radius: 12px; display: flex; align-items: center; gap: 15px; min-width: 260px;
-}
-.winner-avatar {
-  background: var(--cny-red); color: white; width: 60px; height: 60px; border: 3px solid black;
-  border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 26px;
-}
-.w-name { font-weight: 900; font-size: 24px; color: black; }
-.w-id { font-size: 14px; color: #666; font-weight: 600; }
 
-/* Pop Art Button */
-.draw-btn {
-  background: var(--cny-gold);
-  border: 4px solid black;
-  box-shadow: 8px 8px 0px black;
-  cursor: pointer; transition: all 0.1s;
-  padding: 0;
-  border-radius: 50px;
-  overflow: visible;
+.winner-card-slot {
+  display: flex; flex-direction: column; align-items: center;
+  background: #fdfdfd; border: 1px solid #ccc; padding: 10px;
+  border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  min-width: 120px;
 }
-.btn-inner {
-  background: transparent;
-  color: var(--cny-red);
-  font-size: 40px;
-  font-weight: 900;
-  padding: 20px 80px;
-  text-shadow: none;
+.winner-card-slot .winner-avatar { width: 50px; height: 50px; font-size: 24px; margin-bottom: 5px; }
+.winner-card-slot .w-name { font-size: 18px; }
+.winner-card-slot .w-id { font-size: 12px; color: #888; }
+
+/* Control Plate */
+.machine-controls-plate {
+  background: #333;
+  padding: 15px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 2px solid #555;
+  box-shadow: inset 0 5px 10px rgba(0,0,0,0.8);
+}
+.coin-slot {
+  background: #111; color: #888; padding: 5px 10px; border: 2px solid #555;
+  font-size: 12px; border-radius: 50%; width: 50px; height: 50px;
+  display: flex; justify-content: center; align-items: center; text-align: center;
+}
+.spin-button {
+  background: red;
+  color: white;
   border: none;
-  border-radius: 0;
-  box-shadow: none;
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  font-weight: 900;
+  font-size: 20px;
+  box-shadow: 
+    0 5px 0 #8b0000,
+    0 10px 10px rgba(0,0,0,0.5);
+  cursor: pointer;
+  transition: all 0.1s;
 }
-.draw-btn:active:not(:disabled) {
-  transform: translate(4px, 4px);
-  box-shadow: 4px 4px 0px black;
+.spin-button:active:not(:disabled) {
+  transform: translateY(5px);
+  box-shadow: 0 0 0 #8b0000, inset 0 5px 10px rgba(0,0,0,0.5);
 }
-.draw-btn:disabled {
-  background: #ccc; border-color: #666; color: #888; cursor: not-allowed;
+.spin-button:disabled { filter: grayscale(100%); cursor: not-allowed; }
+
+.status-lights { display: flex; gap: 5px; }
+.light {
+  width: 40px; text-align: center; font-size: 10px; color: #444; background: #222;
+  padding: 2px; border-radius: 2px;
+}
+.light.on {
+  background: #0f0; color: black; box-shadow: 0 0 5px #0f0;
+  text-shadow: 0 0 2px #fff;
+}
+
+/* Lever */
+.lever-group {
+  position: absolute;
+  right: -50px;
+  bottom: 50px;
+  width: 60px;
+  height: 300px;
+  z-index: 5;
+}
+.lever-base {
+  position: absolute; bottom: 0; left: 0;
+  width: 40px; height: 80px;
+  background: #555;
+  border-radius: 0 10px 10px 0;
+  box-shadow: inset 5px 0 10px rgba(0,0,0,0.5);
+  border: 2px solid #333;
+}
+.lever-shaft {
+   height: 250px; width: 15px;
+   background: linear-gradient(to right, #999, #eee, #999);
+   position: absolute; bottom: 40px; left: 10px;
+   transform-origin: bottom center;
+   border-radius: 5px;
+   transition: transform 0.5s cubic-bezier(0.5, 0, 0.5, 1);
+}
+.lever-shaft::after {
+   /* The Knob */
+   content: '';
+   position: absolute; top: -20px; left: -12.5px;
+   width: 40px; height: 40px;
+   border-radius: 50%;
+   background: radial-gradient(circle at 30% 30%, #ff0000, #550000);
+   box-shadow: 0 5px 10px rgba(0,0,0,0.5);
+   cursor: pointer;
+}
+.lever-shaft.pulled {
+   transform: rotateX(150deg); /* Pull down effect */
+   animation: pull-action 0.5s ease-in-out;
+}
+
+@keyframes pull-action {
+  0% { transform: rotateX(0deg); }
+  50% { transform: rotateX(60deg) scaleY(0.9); } 
+  100% { transform: rotateX(0deg); }
 }
 
 /* Winners List */
