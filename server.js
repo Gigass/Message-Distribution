@@ -21,7 +21,7 @@ const resolveTemplatePath = () => TEMPLATE_PATHS.find(p => fs.existsSync(p));
 // ==========================================
 
 // 口令配置加载
-const TOKENS_FILE = 'tokens.json';
+const TOKENS_FILE = path.resolve(__dirname, 'tokens.json');
 let TOKENS_CONFIG = [];
 
 const loadTokensConfig = () => {
