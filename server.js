@@ -9,9 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const TEMPLATE_PATHS = [
-    path.resolve(process.cwd(), 'public', 'info.xlsx'),
-    path.resolve(process.cwd(), 'info.xlsx'),
-    path.resolve(process.cwd(), 'dist', 'info.xlsx')
+    path.join(__dirname, 'public', 'info.xlsx'),
+    path.join(__dirname, 'info.xlsx'),
+    // Fallback for some deployment structures
+    path.join(__dirname, 'dist', 'info.xlsx'),
+    path.resolve(process.cwd(), 'dist', 'info.xlsx') // Keep compat for CWD based deployments
 ];
 
 const resolveTemplatePath = () => TEMPLATE_PATHS.find(p => fs.existsSync(p));
@@ -76,9 +78,11 @@ const getTokenCache = (tokenId) => {
     return DATA_CACHE.get(tokenId);
 };
 
-// 获取某个 tokenId 的数据文件路径
+// 获取某个 tokenId 的数据文件路径 (Use Absolute Path)
 const getDataFilePath = (tokenId) => {
-    return `lottery-data-${tokenId}.json`;
+    // 强制使用 __dirname，确保文件路径与 server.js 所在位置一致，不受启动目录影响
+    const p = path.join(__dirname, `lottery-data-${tokenId}.json`);
+    return p;
 };
 
 // 加载某个 tokenId 的抽奖数据
@@ -127,7 +131,8 @@ app.use((req, res, next) => {
 });
 
 // 生产环境托管 Vue 构建产物 (dist)
-app.use(express.static(path.resolve(process.cwd(), 'dist')));
+// Use __dirname to find dist securely
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // 配置 Multer：使用内存存储，不写入磁盘
 const upload = multer({ 
@@ -304,8 +309,10 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
 
 // 处理 SPA 路由：所有非 API 请求返回 index.html
 // 注意：这个中间件必须在所有 API 路由之后
+// 处理 SPA 路由：所有非 API 请求返回 index.html
+// 注意：这个中间件必须在所有 API 路由之后
 const spaHandler = (req, res) => {
-    res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'), (err) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'), (err) => {
         if (err) {
             console.error('Error serving index.html:', err);
             res.status(500).send(err.message);
@@ -605,12 +612,17 @@ app.get('/api/lottery/export', authMiddleware, (req, res) => {
         const workbook = xlsx.utils.book_new();
         xlsx.utils.book_append_sheet(workbook, worksheet, "中奖名单");
 
+        // Write to buffer
         const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
         console.log(`[Export] Buffer size: ${buffer.length} bytes`);
 
+        // Set Headers explicitly
         res.setHeader('Content-Disposition', 'attachment; filename=winners.xlsx');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Length', buffer.length); // IMPORTANT for some proxies/clients
+        
         res.send(buffer);
+
     } catch (error) {
         console.error('[Export] Error:', error);
         res.status(500).json({ success: false, message: '导出失败: ' + error.message });
