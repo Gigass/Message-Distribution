@@ -4,7 +4,7 @@
       "id": "1769067430566",
       "name": "iphone6",
       "count": 2,
-      "remaining": 1,
+      "remaining": 2,
       "level": "participation",
       "levelLabel": "参与奖"
     },
@@ -15,22 +15,42 @@
       "remaining": 11,
       "level": "participation",
       "levelLabel": "参与奖"
+    },
+    {
+      "id": "1769649387398",
+      "name": "苹果一箱",
+      "count": 30,
+      "remaining": 28,
+      "level": "third",
+      "levelLabel": "三等奖"
     }
   ],
   "winners": [
     {
-      "id": "17690677422772g7zz",
-      "prizeId": "1769067430566",
-      "prizeName": "iphone6",
-      "prizeLevel": "participation",
-      "prizeLevelLabel": "参与奖",
-      "winnerId": "DT027",
-      "winnerName": "李强",
-      "winnerSeat": "3号桌",
-      "winTime": "2026-01-22T07:42:22.277Z"
+      "id": "1769654106633rjagl",
+      "prizeId": "1769649387398",
+      "prizeName": "苹果一箱",
+      "prizeLevel": "third",
+      "prizeLevelLabel": "三等奖",
+      "winnerId": "DT002",
+      "winnerName": "刘总",
+      "winnerSeat": "1号桌",
+      "winTime": "2026-01-29T02:35:06.633Z"
+    },
+    {
+      "id": "1769654106633400fu",
+      "prizeId": "1769649387398",
+      "prizeName": "苹果一箱",
+      "prizeLevel": "third",
+      "prizeLevelLabel": "三等奖",
+      "winnerId": "DT001",
+      "winnerName": "小明",
+      "winnerSeat": "1号桌",
+      "winTime": "2026-01-29T02:35:06.633Z"
     }
   ],
   "excludedIds": [
-    "DT027"
+    "DT002",
+    "DT001"
   ]
 }

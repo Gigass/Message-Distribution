@@ -116,18 +116,27 @@
                       <div class="placeholder-title">准备好了吗？！</div>
                     </template>
                   </div>
-                  <div v-else-if="isRolling" class="rolling-text blur-effect">
-                    {{ rollingName }}
+                  
+                  <!-- Real Scroll Effect -->
+                  <div v-else-if="isRolling" class="reel-viewport">
+                     <div class="reel-strip" :style="reelStyle">
+                        <div v-for="(name, idx) in reelCandidates" :key="idx" class="reel-cell">
+                           {{ name }}
+                        </div>
+                     </div>
                   </div>
+
                   <div v-else class="result-display">
                     <div class="result-banner">
                       <span class="banner-label">奖品</span>
                       <span class="banner-name">{{ currentResult?.[0]?.prizeName }}</span>
                     </div>
+                    <!-- Single Winner View -->
                     <div v-if="currentResult?.length === 1" class="winner-single">
                       <div class="winner-single-name">{{ currentResult[0].winnerName }}</div>
                       <div class="winner-single-seat" v-if="hasSeatInfo">桌号: {{ currentResult[0].winnerSeat }}</div>
                     </div>
+                    <!-- Multi Winner View -->
                     <div v-else class="winner-grid">
                       <div v-for="winner in currentResult" :key="winner.id" class="winner-tile">
                         <div class="winner-tile-name">{{ winner.winnerName }}</div>
@@ -180,17 +189,17 @@
           </div>
           <div class="winners-list">
              <div v-for="record in recentWinners" :key="record.id" class="winner-item">
-               <div class="rank-icon" :class="record.prizeLevel">
-                 {{ getLevelIcon(record.prizeLevel) }}
+               <div class="rank-icon-wrapper">
+                  <div class="rank-icon" :class="record.prizeLevel">{{ getLevelIcon(record.prizeLevel) }}</div>
                </div>
-               <div class="record-detail">
-                 <div class="r-top">
-                   <span class="r-name">{{ record.winnerName }}</span>
-                   <span class="r-prize">{{ record.prizeName }}</span>
+               <div class="winner-info-col">
+                 <div class="wi-name">{{ record.winnerName }}</div>
+                 <div class="wi-meta">
+                   {{ record.winnerId }} <span v-if="hasSeatInfo" class="wi-seat"> | {{ record.winnerSeat }}号桌</span>
                  </div>
-                 <div class="r-bottom">
-                    {{ record.winnerId }} <span v-if="hasSeatInfo">(桌号: {{ record.winnerSeat }})</span>
-                 </div>
+               </div>
+               <div class="winner-prize-col">
+                 <div class="prize-pill">{{ record.prizeName }}</div>
                </div>
              </div>
              <div v-if="recentWinners.length === 0" class="empty-msg dark">
@@ -242,7 +251,8 @@ const prizes = ref([])
 const winners = ref([])
 const candidates = ref([]) // Real data
 const isRolling = ref(false)
-const rollingName = ref('***')
+const reelCandidates = ref([]) // For animation
+const reelStyle = ref({}) // For animation transform
 const selectedPrizeId = ref(null)
 const drawCount = ref(1)
 const currentResult = ref(null)
@@ -471,22 +481,49 @@ const triggerLeverAction = async () => {
    }, 300)
 }
 
-// Draw Logic with Deceleration
+// Draw Logic with "Real Scroll"
 const startDraw = async () => {
-   // Already checked validation in triggerLeverAction, but double check if called directly
    if (isRolling.value) return
 
-
-   // 1. Start Fast Rolling (Phase 1)
+   // 1. Prepare Reel Data (Phase 1: Infinite Spin)
    isRolling.value = true
    currentResult.value = null
    
-   // Use real candidates or fallback
+   // Create a long strip of random names
    const namePool = candidates.value.length > 0 ? candidates.value.map(c => c.name) : ['张三', '李四', '王五']
    
-   rollingTimer = setInterval(() => {
-      rollingName.value = namePool[Math.floor(Math.random() * namePool.length)]
-   }, 50)
+   // Generate ~50 items for the "blur" effect
+   const tempReel = []
+   for (let i = 0; i < 50; i++) {
+     tempReel.push(namePool[Math.floor(Math.random() * namePool.length)])
+   }
+   reelCandidates.value = tempReel
+   
+   // Start infinite scroll animation (SLOWER: 5s instead of 2s)
+   reelStyle.value = {
+     transform: 'translateY(0)',
+     transition: 'none'
+   }
+   
+   // Force Reflow
+   setTimeout(() => {
+       reelStyle.value = {
+         transform: `translateY(-${(tempReel.length - 5) * 60}px)`, // Move to bottom (assuming 60px height)
+         transition: `transform 10s linear` // 10 seconds
+       }
+   }, 20)
+
+   // Loop the animation if network is slow (every 5s now)
+   const loopTimer = setInterval(() => {
+       // Reset to top instantly
+       reelStyle.value = { transform: 'translateY(0)', transition: 'none' }
+       setTimeout(() => {
+           reelStyle.value = {
+             transform: `translateY(-${(tempReel.length - 5) * 60}px)`,
+             transition: `transform 10s linear` // 10 seconds
+           }
+       }, 20)
+   }, 10000) // Match animation duration (10s)
 
    // 2. Call API
    try {
@@ -505,32 +542,43 @@ const startDraw = async () => {
      const result = await res.json()
      
      if (result.success) {
-       // Stop the fast interval
-       clearInterval(rollingTimer)
+       // Stop the infinite loop
+       clearInterval(loopTimer)
        
-       // Start Deceleration (Phase 2)
-       // We want ~5 seconds of slowing down. 
-       // Start at 50ms, multiply by 1.1 each step.
-       // 50 * (1.1^n - 1) / 0.1 = 5000 => 1.1^n ≈ 11 => n ≈ 25 steps
+       // 3. Stop Phase: Land on Winner
+       const winnerName = result.data[0].winnerName
        
-       const winnerName = result.data[0].winnerName // Land on the first winner
-       let step = 0
-       const totalSteps = 25
-       let currentDelay = 50
-
-       const runDecelerationStep = () => {
-         step++
-         if (step < totalSteps) {
-           // Show random name
-           rollingName.value = namePool[Math.floor(Math.random() * namePool.length)]
-           // Increase delay
-           currentDelay = currentDelay * 1.1
-           setTimeout(runDecelerationStep, currentDelay)
-         } else {
-       // Final Step: Show Winner
-       rollingName.value = winnerName
+       // Construct a LONG final strip with random names (allows for longer animation)
+       const finalStrip = []
+       // Add many names BEFORE the winner (creates the scrolling effect)
+       for (let i = 0; i < 80; i++) {
+          finalStrip.push(namePool[Math.floor(Math.random() * namePool.length)])
+       }
+       // Add the WINNER
+       const winnerIndex = finalStrip.length
+       finalStrip.push(winnerName)
+       // Add names AFTER the winner (so it doesn't look empty below)
+       for (let i = 0; i < 15; i++) {
+          finalStrip.push(namePool[Math.floor(Math.random() * namePool.length)])
+       }
        
-       // Slight pause before showing modal
+       reelCandidates.value = finalStrip
+       
+       // Reset position to top first
+       reelStyle.value = { transform: 'translateY(0)', transition: 'none' }
+       
+       setTimeout(() => {
+          // Winner is at winnerIndex. Center it in the 250px viewport.
+          // Target: index * 60px - (viewport/2 - cellHeight/2)
+          const targetY = winnerIndex * 60 - (250 / 2 - 30)
+          
+          reelStyle.value = {
+             transform: `translateY(-${targetY}px)`,
+             transition: 'transform 6s cubic-bezier(0.1, 0.7, 0.1, 1)' // Longer ease out for more names
+          }
+       }, 50)
+       
+       // 4. Show Result Modal after animation (6s landing + 0.5s pause)
        setTimeout(() => {
          stopRollingAudio()
          isRolling.value = false
@@ -539,22 +587,16 @@ const startDraw = async () => {
          fetchData() 
          fireFireworks() 
          playWinnerAudio()
-       }, 800)
-      }
-    }
-
-       // Kick off deceleration
-       runDecelerationStep()
+       }, 6500)
 
    } else {
-     clearInterval(rollingTimer)
+     clearInterval(loopTimer)
      stopRollingAudio()
      isRolling.value = false
      alert(result.message)
    }
 
   } catch (e) {
-    clearInterval(rollingTimer)
     stopRollingAudio()
     isRolling.value = false
     alert('抽奖失败，请检查网络')
@@ -921,12 +963,13 @@ h2 {
 }
 .rolling-display {
   width: 100%;
-  height: 250px;
+  min-height: 250px;
+  max-height: 350px; /* Allow more height for multi-winner */
   background: white;
   border-radius: 4px;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: center; /* Center placeholder vertically */
   position: relative;
   overflow: hidden;
   /* Slot reel effect */
@@ -935,12 +978,35 @@ h2 {
   box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
 }
 
-.rolling-text { 
-  font-size: 60px; font-weight: 900; color: #333; 
-  font-family: 'Courier New', monospace;
+/* Real Scroll Reel Styles */
+.reel-viewport {
+  width: 100%;
+  height: 250px; /* Match rolling-display height */
+  overflow: hidden;
+  position: relative;
+  /* fade edges */
+  mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
 }
-.rolling-text.blur-effect {
-  filter: blur(2px);
+.reel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.reel-cell {
+  height: 60px; /* Fixed height for calculation */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 36px;
+  font-weight: 900;
+  color: #333;
+  width: 100%;
+}
+/* Blur effect during fast spin */
+.reel-strip[style*="2s linear"] .reel-cell {
+  filter: blur(1px);
   transform: scaleY(1.1);
 }
 .placeholder {
@@ -969,10 +1035,11 @@ h2 {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   height: 100%;
-  padding: 8px;
+  padding: 12px;
+  box-sizing: border-box;
 }
 .result-banner {
   display: inline-flex;
@@ -984,8 +1051,10 @@ h2 {
   color: #7a2a00;
   font-weight: 900;
   letter-spacing: 1px;
-  font-size: clamp(16px, 3vw, 26px);
+  font-size: clamp(14px, 2.5vw, 22px);
   box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  flex-shrink: 0; /* Prevent shrinking */
+  z-index: 10;
 }
 .result-banner .banner-label {
   font-size: 0.8em;
@@ -996,13 +1065,13 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-content: center;
+  align-content: flex-start;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  max-height: 190px;
-  overflow: auto;
-  padding: 4px 8px;
+  overflow-y: auto;
+  padding: 4px;
+  max-height: 220px; /* Limit height to allow scrolling */
 }
 .winner-tile {
   flex: 0 1 calc(50% - 10px);
@@ -1180,25 +1249,98 @@ h2 {
   flex: 1; overflow-y: auto;
 }
 .winner-item {
-  display: flex; gap: 10px; padding: 10px; 
-  border-bottom: 2px dashed rgba(0,0,0,0.1);
-  margin-bottom: 5px;
+  display: flex; 
+  align-items: center;
+  gap: 15px; 
+  padding: 15px 12px; 
+  border-bottom: 2px dashed #333;
+  margin-bottom: 8px;
+  background: #fff;
+  border-radius: 8px;
+  border: 2px solid #111;
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
 }
-.rank-icon { font-size: 20px; }
-.r-top { color: black; font-weight: 900; }
-.r-bottom { font-size: 12px; color: #555; }
+.winner-item::after {
+  /* Decorative Ticket Stub Lines */
+  content: ''; position: absolute; left: 45px; top: 0; bottom: 0;
+  border-right: 2px dashed #ccc;
+}
+.winner-item:hover {
+  transform: translateX(-2px);
+  box-shadow: 6px 6px 0px var(--cny-gold);
+}
+.winner-item:hover {
+  background: white;
+}
+.rank-icon-wrapper {
+  width: 40px; display: flex; justify-content: center;
+}
+.rank-icon { font-size: 24px; filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.1)); }
+
+.winner-info-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.wi-name {
+  font-size: 20px; font-weight: 900; color: #111;
+  line-height: 1.1; margin-bottom: 4px;
+}
+.wi-meta {
+  font-size: 13px; color: #555; font-weight: 600;
+  font-family: monospace;
+}
+.wi-seat { color: #b03a00; font-weight: 800; background: #ffeebb; padding: 0 4px; border-radius: 2px; }
+
+.winner-prize-col {
+  display: flex; justify-content: flex-end; align-items: center;
+  padding-left: 10px;
+}
+.prize-pill {
+  background: var(--cny-gold);
+  color: #111;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 6px 12px;
+  border-radius: 4px;
+  box-shadow: 2px 2px 0px black;
+  border: 2px solid black;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: rotate(-2deg); /* Stamp effect */
+}
 .empty-msg { color: #888; font-style: italic; text-align: center; padding: 20px; }
 
 /* Modal - Pop Art Dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 2000; /* High z-index to cover everything */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none; /* Default none, enable when active if needed, or just handle via v-if */
+  opacity: 0;
+  transition: opacity 0.3s;
+}
 .modal-overlay.show {
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(5px);
+  opacity: 1;
+  pointer-events: auto;
 }
 .result-modal {
   background: white;
   width: 95%; max-width: 1000px; /* Increased width for more cards */
   border: 6px solid black;
-  box-shadow: 20px 20px 0px var(--cny-gold);
+  /* box-shadow removed as requested */
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
   border-radius: 30px;
   animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   display: flex;

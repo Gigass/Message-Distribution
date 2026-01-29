@@ -163,6 +163,9 @@
               <option value="participation">参与奖</option>
             </select>
           </div>
+          <div class="form-row">
+            <input v-model="newPrize.customLabel" placeholder="自定义等级名称 (可选, 如: 幸运奖)" class="glitch-input small">
+          </div>
           <button class="action-btn secondary small" @click="addPrize">
             <span>➕ 添加奖品</span>
             <div class="btn-shadow"></div>
@@ -173,7 +176,7 @@
         <div class="prize-list">
           <div v-for="prize in prizes" :key="prize.id" class="prize-item">
             <div class="prize-info">
-              <span class="level-tag" :class="prize.level">{{ getLevelLabel(prize.level) }}</span>
+              <span class="level-tag" :class="prize.level">{{ prize.levelLabel || getLevelLabel(prize.level) }}</span>
               <span class="prize-name">{{ prize.name }}</span>
               <span class="prize-count">x{{ prize.count }} (余:{{ prize.remaining }})</span>
             </div>
@@ -270,7 +273,7 @@ const parseProgress = ref('') // 解析进度提示
 
 // 奖品管理相关
 const prizes = ref([])
-const newPrize = ref({ name: '', count: '', level: 'participation' })
+const newPrize = ref({ name: '', count: '', level: 'participation', customLabel: '' })
 const employees = ref([])
 
 const getLevelLabel = (level) => {
@@ -315,6 +318,9 @@ const refreshAll = async () => {
 const addPrize = async () => {
     if(!newPrize.value.name || !newPrize.value.count) return
     try {
+        // Use custom label if provided, otherwise use default level label
+        const levelLabel = newPrize.value.customLabel.trim() || getLevelLabel(newPrize.value.level)
+        
         const res = await fetch('/api/prizes', {
             method: 'POST',
             headers: { 
@@ -322,13 +328,15 @@ const addPrize = async () => {
                 'x-auth-token': verifiedToken.value 
             },
             body: JSON.stringify({
-                ...newPrize.value,
-                levelLabel: getLevelLabel(newPrize.value.level)
+                name: newPrize.value.name,
+                count: newPrize.value.count,
+                level: newPrize.value.level,
+                levelLabel: levelLabel
             })
         })
         const json = await res.json()
         if (json.success) {
-            newPrize.value = { name: '', count: '', level: 'participation' }
+            newPrize.value = { name: '', count: '', level: 'participation', customLabel: '' }
             fetchPrizes()
         } else {
             alert(json.message)

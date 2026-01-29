@@ -534,25 +534,33 @@ app.get('/api/lottery/export', authMiddleware, (req, res) => {
     const cache = getTokenCache(req.tokenId);
     const winners = cache.winners;
     
+    console.log(`[Export] Request for token ${req.tokenId}, winners count: ${winners.length}`);
+
     // 准备数据
     const exportData = winners.map(w => ({
         '工号': w.winnerId,
         '姓名': w.winnerName,
-        '桌号': w.winnerSeat,
+        '桌号': w.winnerSeat || '', // Ensure empty string if undefined
         '奖项等级': w.prizeLevelLabel,
         '奖品名称': w.prizeName,
         '中奖时间': new Date(w.winTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
     }));
 
-    // 如果数据为空，提供表头
+    console.log(`[Export] Generated ${exportData.length} rows`);
+
+    // 如果数据为空，提供表头 (Not strictly needed if we enforce headers in json_to_sheet, but good for safety)
     if (exportData.length === 0) {
-        exportData.push({
-             '工号': '', '姓名': '', '桌号': '', '奖项等级': '', '奖品名称': '', '中奖时间': ''
-        });
+        // exportData.push({ ... }) // logic removed, using header option below is cleaner
     }
 
-    const worksheet = xlsx.utils.json_to_sheet(exportData);
+    const headers = ['工号', '姓名', '桌号', '奖项等级', '奖品名称', '中奖时间'];
+    const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers });
     
+    // Check if sheet is empty range
+    if(!worksheet['!ref']) {
+        worksheet['!ref'] = 'A1:F1'; // Force at least header row
+    }
+
     // 设置列宽
     const wscols = [
         {wch: 15}, // id
@@ -568,6 +576,7 @@ app.get('/api/lottery/export', authMiddleware, (req, res) => {
     xlsx.utils.book_append_sheet(workbook, worksheet, "中奖名单");
 
     const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    console.log(`[Export] Buffer size: ${buffer.length} bytes`);
 
     res.setHeader('Content-Disposition', 'attachment; filename=winners.xlsx');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
