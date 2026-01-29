@@ -537,29 +537,23 @@ app.get('/api/lottery/export', authMiddleware, (req, res) => {
     console.log(`[Export] Request for token ${req.tokenId}, winners count: ${winners.length}`);
 
     // 准备数据
-    const exportData = winners.map(w => ({
-        '工号': w.winnerId,
-        '姓名': w.winnerName,
-        '桌号': w.winnerSeat || '', // Ensure empty string if undefined
-        '奖项等级': w.prizeLevelLabel,
-        '奖品名称': w.prizeName,
-        '中奖时间': new Date(w.winTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
-    }));
-
-    console.log(`[Export] Generated ${exportData.length} rows`);
-
-    // 如果数据为空，提供表头 (Not strictly needed if we enforce headers in json_to_sheet, but good for safety)
-    if (exportData.length === 0) {
-        // exportData.push({ ... }) // logic removed, using header option below is cleaner
-    }
-
+    // 准备表头
     const headers = ['工号', '姓名', '桌号', '奖项等级', '奖品名称', '中奖时间'];
-    const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers });
     
-    // Check if sheet is empty range
-    if(!worksheet['!ref']) {
-        worksheet['!ref'] = 'A1:F1'; // Force at least header row
-    }
+    // 准备数据 (转换为二维数组，避免键名匹配问题)
+    const dataRows = winners.map(w => [
+        w.winnerId,
+        w.winnerName,
+        w.winnerSeat || '',
+        w.prizeLevelLabel,
+        w.prizeName,
+        new Date(w.winTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+    ]);
+    
+    console.log(`[Export] Generated ${dataRows.length} rows`);
+
+    // 使用 aoa_to_sheet 直接生成表格，确保数据准确写入
+    const worksheet = xlsx.utils.aoa_to_sheet([headers, ...dataRows]);
 
     // 设置列宽
     const wscols = [
