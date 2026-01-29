@@ -126,12 +126,12 @@
                     </div>
                     <div v-if="currentResult?.length === 1" class="winner-single">
                       <div class="winner-single-name">{{ currentResult[0].winnerName }}</div>
-                      <div class="winner-single-seat">桌号: {{ currentResult[0].winnerSeat }}</div>
+                      <div class="winner-single-seat" v-if="hasSeatInfo">桌号: {{ currentResult[0].winnerSeat }}</div>
                     </div>
                     <div v-else class="winner-grid">
                       <div v-for="winner in currentResult" :key="winner.id" class="winner-tile">
                         <div class="winner-tile-name">{{ winner.winnerName }}</div>
-                        <div class="winner-tile-seat">桌号: {{ winner.winnerSeat }}</div>
+                        <div class="winner-tile-seat" v-if="hasSeatInfo">桌号: {{ winner.winnerSeat }}</div>
                       </div>
                     </div>
                   </div>
@@ -176,6 +176,7 @@
           <h2>🏆 幸运榜单 🏆</h2>
           <div class="panel-actions">
             <button class="panel-refresh" @click="refreshData">刷新数据</button>
+            <button class="panel-export" @click="exportData" v-if="verifiedToken">导出名单</button>
           </div>
           <div class="winners-list">
              <div v-for="record in recentWinners" :key="record.id" class="winner-item">
@@ -188,7 +189,7 @@
                    <span class="r-prize">{{ record.prizeName }}</span>
                  </div>
                  <div class="r-bottom">
-                   {{ record.winnerId }} (桌号: {{ record.winnerSeat }})
+                    {{ record.winnerId }} <span v-if="hasSeatInfo">(桌号: {{ record.winnerSeat }})</span>
                  </div>
                </div>
              </div>
@@ -211,14 +212,17 @@
         <div class="confetti-bg"></div>
         <h2>🎉 恭喜中奖 🎉</h2>
         <div class="modal-prize-name">{{ currentResult?.[0]?.prizeName }}</div>
-        
-        <div class="modal-winners-grid">
-           <div v-for="w in currentResult" :key="w.id" class="modal-winner">
-             <div class="mw-avatar">{{ w.winnerName[0] }}</div>
-             <div class="mw-name">{{ w.winnerName }}</div>
-             <div class="mw-seat">桌号: {{ w.winnerSeat }}</div>
-           </div>
-        </div>
+                <div class="modal-winners-grid" :class="{ 'scrollable': currentResult?.length > 8 }">
+            <div v-for="w in currentResult" :key="w.id" class="skeuomorphic-card">
+              <div class="card-avatar">{{ w.winnerName[0] }}</div>
+              <div class="card-info">
+                <div class="card-name">{{ w.winnerName }}</div>
+                <div class="card-detail">工号: {{ w.winnerId }}</div>
+                <div class="card-detail" v-if="hasSeatInfo">桌号: {{ w.winnerSeat }}</div>
+                <div class="card-badge">{{ w.prizeName }}</div>
+              </div>
+            </div>
+         </div>
 
         <button class="modal-close" @click="closeModal">收入囊中</button>
       </div>
@@ -316,6 +320,11 @@ const recentWinners = computed(() => {
    return winners.value.slice(0, 20) // Show top 20
 })
 
+const hasSeatInfo = computed(() => {
+  if (!candidates.value || candidates.value.length === 0) return false
+  return candidates.value.some(c => c.seat && String(c.seat).trim() !== '')
+})
+
 // Lifecycle
 onMounted(() => {
   // Initial fetch for public data
@@ -380,6 +389,31 @@ const fetchData = async () => {
 
 const refreshData = async () => {
   await fetchData()
+}
+
+const exportData = async () => {
+  if (!confirm('确定要导出当前显示的所有中奖名单吗？')) return
+  try {
+     const res = await fetch('/api/lottery/export', {
+       headers: { 'x-auth-token': verifiedToken.value }
+     })
+     if(!res.ok) {
+       alert('导出失败')
+       return
+     }
+     const blob = await res.blob()
+     const url = window.URL.createObjectURL(blob)
+     const a = document.createElement('a')
+     a.href = url
+     a.download = `中奖名单_${new Date().toISOString().split('T')[0]}.xlsx`
+     document.body.appendChild(a)
+     a.click()
+     window.URL.revokeObjectURL(url)
+     document.body.removeChild(a)
+  } catch(e) {
+    console.error(e)
+    alert('导出异常')
+  }
 }
 
 const selectPrize = (prize) => {
@@ -1126,6 +1160,22 @@ h2 {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0px #000;
 }
+.panel-export {
+  background: #d6ffff;
+  border: 3px solid #000;
+  color: #000;
+  font-weight: 900;
+  padding: 6px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0px #000;
+  transition: transform 0.1s;
+  margin-left: 10px;
+}
+.panel-export:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000;
+}
 .winners-list {
   flex: 1; overflow-y: auto;
 }
@@ -1146,38 +1196,98 @@ h2 {
 }
 .result-modal {
   background: white;
-  width: 90%; max-width: 600px;
+  width: 95%; max-width: 1000px; /* Increased width for more cards */
   border: 6px solid black;
   box-shadow: 20px 20px 0px var(--cny-gold);
   border-radius: 30px;
   animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-@keyframes bounce-in {
-  0% { transform: scale(0.3); opacity: 0; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); }
-}
-
-.result-modal h2 {
-  font-size: 56px; color: var(--cny-red); 
-  text-shadow: 3px 3px 0px var(--cny-gold);
-  background: transparent; border: none; transform: none; width: auto;
-  box-shadow: none;
-}
-.modal-prize-name {
-  font-size: 32px; background: var(--cny-gold); border: 4px solid black;
-  display: inline-block; padding: 10px 30px;
-  box-shadow: 6px 6px 0px black; margin-bottom: 40px; color: var(--cny-red); border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px;
+  max-height: 90vh; /* Prevent overflow on vertical */
 }
 
-.modal-winner {
-  width: 120px; background: white; border: 3px solid black; padding: 10px;
-  box-shadow: 6px 6px 0px rgba(0,0,0,0.1); border-radius: 12px;
+/* Updated Grid for Cards */
+.modal-winners-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+  width: 100%;
+  padding: 10px;
+  overflow-y: auto; /* Allow internal scrolling if needed */
+  max-height: 60vh;
 }
-.mw-avatar {
-  background: var(--cny-red); border: 2px solid black; width: 60px; height: 60px; line-height: 56px;
-  border-radius: 50%; margin-bottom: 10px; font-weight: bold; color: white;
+.modal-winners-grid.scrollable {
+  /* Specific styling for scrollable state if needed */
+  padding-right: 5px;
 }
+
+/* Skeuomorphic Card Design */
+.skeuomorphic-card {
+  width: 180px;
+  background: #fff;
+  border: 3px solid #111;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 5px 5px 0px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: transform 0.2s;
+  position: relative;
+}
+.skeuomorphic-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 5px 10px 10px rgba(0,0,0,0.1);
+}
+/* Card Hole Punch Effect */
+.skeuomorphic-card::before {
+  content: ''; position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  width: 12px; height: 12px; background: #333; border-radius: 50%;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5);
+  display: none; /* Optional: Looks like a tag */
+}
+
+.card-avatar {
+  width: 50px; height: 50px;
+  background: var(--cny-red);
+  color: white;
+  border: 2px solid black;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 900;
+  margin-bottom: 10px;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+}
+
+.card-info {
+  width: 100%;
+}
+
+.card-name {
+  font-size: 18px; font-weight: 900; color: #111; margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-detail {
+  font-size: 12px; color: #666; font-weight: 600;
+  margin-bottom: 2px;
+}
+.card-badge {
+  margin-top: 8px;
+  background: var(--cny-gold);
+  color: #111;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid black;
+  display: inline-block;
+}
+
+/* Old styles kept for compatibility if referenced elsewhere, but new ones override */
 .mw-name { font-weight: 900; color: black; }
 
 .modal-close {

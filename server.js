@@ -529,6 +529,51 @@ app.post('/api/lottery/invalidate', authMiddleware, (req, res) => {
     res.json({ success: true, message: '已作废该中奖记录，奖品已回库' });
 });
 
+// 8. 导出中奖名单 (需认证)
+app.get('/api/lottery/export', authMiddleware, (req, res) => {
+    const cache = getTokenCache(req.tokenId);
+    const winners = cache.winners;
+    
+    // 准备数据
+    const exportData = winners.map(w => ({
+        '工号': w.winnerId,
+        '姓名': w.winnerName,
+        '桌号': w.winnerSeat,
+        '奖项等级': w.prizeLevelLabel,
+        '奖品名称': w.prizeName,
+        '中奖时间': new Date(w.winTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+    }));
+
+    // 如果数据为空，提供表头
+    if (exportData.length === 0) {
+        exportData.push({
+             '工号': '', '姓名': '', '桌号': '', '奖项等级': '', '奖品名称': '', '中奖时间': ''
+        });
+    }
+
+    const worksheet = xlsx.utils.json_to_sheet(exportData);
+    
+    // 设置列宽
+    const wscols = [
+        {wch: 15}, // id
+        {wch: 15}, // name
+        {wch: 15}, // seat
+        {wch: 15}, // level
+        {wch: 20}, // prize
+        {wch: 25}  // time
+    ];
+    worksheet['!cols'] = wscols;
+
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "中奖名单");
+
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=winners.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+});
+
 // SPA 路由处理（放在所有 API 之后）
 app.use(spaHandler);
 
