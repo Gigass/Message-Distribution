@@ -629,6 +629,12 @@ app.get('/api/lottery/export', authMiddleware, (req, res) => {
     }
 });
 
+// API 404 处理：防止 API 请求落入 SPA 路由返回 HTML
+app.all('/api/*', (req, res) => {
+    console.warn(`[404] API Route not found: ${req.method} ${req.url}`);
+    res.status(404).json({ success: false, message: `API Endpoint matched no route: ${req.method} ${req.url}` });
+});
+
 // SPA 路由处理（放在所有 API 之后）
 app.use(spaHandler);
 
