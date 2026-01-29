@@ -531,70 +531,90 @@ app.post('/api/lottery/invalidate', authMiddleware, (req, res) => {
 
 // 8. 导出中奖名单 (需认证)
 app.get('/api/lottery/export', authMiddleware, (req, res) => {
-    const cache = getTokenCache(req.tokenId);
-    const winners = cache.winners;
-    
-    console.log(`[Export] Request for token ${req.tokenId}, winners count: ${winners.length}`);
+    try {
+        const cache = getTokenCache(req.tokenId);
+        const winners = cache.winners;
+        
+        console.log(`[Export] Request for token ${req.tokenId}, winners count: ${winners.length}`);
 
-    // headers definition
-    const headers = ['工号', '姓名', '桌号', '奖项等级', '奖品名称', '中奖时间'];
-    
-    // Prepare data as Array of Arrays (AOA) which is more robust than JSON with Chinese keys
-    const aoaData = [headers]; // First row is headers
+        // Check if any winner has seat info
+        const hasSeatInfo = winners.some(w => w.winnerSeat && String(w.winnerSeat).trim() !== '');
 
-    winners.forEach(w => {
-        let timeStr = '';
-        try {
-            if (w.winTime) {
-                const d = new Date(w.winTime);
-                if (!isNaN(d.getTime())) {
-                    timeStr = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        // headers definition
+        const headers = ['工号', '姓名'];
+        if (hasSeatInfo) headers.push('桌号');
+        headers.push('奖项等级', '奖品名称', '中奖时间');
+        
+        // Prepare AOA data
+        const aoaData = [headers];
+
+        winners.forEach(w => {
+            let timeStr = '';
+            try {
+                if (w.winTime) {
+                    const d = new Date(w.winTime);
+                    if (!isNaN(d.getTime())) {
+                        timeStr = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+                    }
                 }
+            } catch (e) {
+                console.error('Date parse error:', e);
             }
-        } catch (e) {
-            console.error('Date parse error:', e);
+
+            const row = [
+                String(w.winnerId || ''),
+                String(w.winnerName || '')
+            ];
+            
+            if (hasSeatInfo) {
+                row.push(String(w.winnerSeat || ''));
+            }
+
+            row.push(
+                String(w.prizeLevelLabel || ''),
+                String(w.prizeName || ''),
+                timeStr
+            );
+            
+            aoaData.push(row);
+        });
+
+        console.log(`[Export] Generated ${aoaData.length} rows (including header)`);
+
+        // Use aoa_to_sheet
+        const worksheet = xlsx.utils.aoa_to_sheet(aoaData);
+        
+        // Force referencing to ensure the sheet is active and visible
+        if (!worksheet['!ref']) {
+            worksheet['!ref'] = 'A1:A1'; // Fallback for empty sheet
         }
 
-        aoaData.push([
-            w.winnerId || '',
-            w.winnerName || '',
-            w.winnerSeat || '',
-            w.prizeLevelLabel || '',
-            w.prizeName || '',
-            timeStr
-        ]);
-    });
+        // 设置列宽
+        const wscols = [
+            {wch: 15}, // id
+            {wch: 15}  // name
+        ];
+        if (hasSeatInfo) wscols.push({wch: 15}); // seat
+        wscols.push(
+            {wch: 15}, // level
+            {wch: 20}, // prize
+            {wch: 25}  // time
+        );
+        worksheet['!cols'] = wscols;
 
-    console.log(`[Export] Generated ${aoaData.length} rows (including header)`);
+        const workbook = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(workbook, worksheet, "中奖名单");
 
-    // Use aoa_to_sheet
-    const worksheet = xlsx.utils.aoa_to_sheet(aoaData);
-    
-    // Force referencing to ensure the sheet is active and visible
-    if (!worksheet['!ref']) {
-        worksheet['!ref'] = 'A1:F1';
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        console.log(`[Export] Buffer size: ${buffer.length} bytes`);
+
+        res.setHeader('Content-Disposition', 'attachment; filename=winners.xlsx');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('[Export] Error:', error);
+        res.status(500).json({ success: false, message: '导出失败: ' + error.message });
     }
-
-    // 设置列宽
-    const wscols = [
-        {wch: 15}, // id
-        {wch: 15}, // name
-        {wch: 15}, // seat
-        {wch: 15}, // level
-        {wch: 20}, // prize
-        {wch: 25}  // time
-    ];
-    worksheet['!cols'] = wscols;
-
-    const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, "中奖名单");
-
-    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    console.log(`[Export] Buffer size: ${buffer.length} bytes`);
-
-    res.setHeader('Content-Disposition', 'attachment; filename=winners.xlsx');
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.send(buffer);
 });
 
 // SPA 路由处理（放在所有 API 之后）
