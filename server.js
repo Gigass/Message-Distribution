@@ -536,24 +536,44 @@ app.get('/api/lottery/export', authMiddleware, (req, res) => {
     
     console.log(`[Export] Request for token ${req.tokenId}, winners count: ${winners.length}`);
 
-    // 准备数据
-    // 准备表头
+    // headers definition
     const headers = ['工号', '姓名', '桌号', '奖项等级', '奖品名称', '中奖时间'];
     
-    // 准备数据 (转换为二维数组，避免键名匹配问题)
-    const dataRows = winners.map(w => [
-        w.winnerId,
-        w.winnerName,
-        w.winnerSeat || '',
-        w.prizeLevelLabel,
-        w.prizeName,
-        new Date(w.winTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
-    ]);
-    
-    console.log(`[Export] Generated ${dataRows.length} rows`);
+    // Prepare data as Array of Arrays (AOA) which is more robust than JSON with Chinese keys
+    const aoaData = [headers]; // First row is headers
 
-    // 使用 aoa_to_sheet 直接生成表格，确保数据准确写入
-    const worksheet = xlsx.utils.aoa_to_sheet([headers, ...dataRows]);
+    winners.forEach(w => {
+        let timeStr = '';
+        try {
+            if (w.winTime) {
+                const d = new Date(w.winTime);
+                if (!isNaN(d.getTime())) {
+                    timeStr = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+                }
+            }
+        } catch (e) {
+            console.error('Date parse error:', e);
+        }
+
+        aoaData.push([
+            w.winnerId || '',
+            w.winnerName || '',
+            w.winnerSeat || '',
+            w.prizeLevelLabel || '',
+            w.prizeName || '',
+            timeStr
+        ]);
+    });
+
+    console.log(`[Export] Generated ${aoaData.length} rows (including header)`);
+
+    // Use aoa_to_sheet
+    const worksheet = xlsx.utils.aoa_to_sheet(aoaData);
+    
+    // Force referencing to ensure the sheet is active and visible
+    if (!worksheet['!ref']) {
+        worksheet['!ref'] = 'A1:F1';
+    }
 
     // 设置列宽
     const wscols = [
